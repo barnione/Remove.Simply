@@ -1,7 +1,7 @@
 <div align="center">
   <img src="build/icon.png" alt="Remove.Simply icon" width="96" />
   <h1>Remove.Simply</h1>
-  <p><strong>A private desktop app for clean background removal.</strong></p>
+  <p><strong>A simple desktop app for clean background removal.</strong></p>
   <p>Built with Electron, React, HeroUI, ONNX Runtime, and Transformers.js.</p>
 </div>
 
