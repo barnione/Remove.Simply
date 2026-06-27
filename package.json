@@ -1,0 +1,48 @@
+{
+  "name": "remove-simply",
+  "version": "0.1.0",
+  "description": "A self-contained Electron background-removal app.",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit",
+    "build": "electron-vite build",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@heroui/react": "2.8.10",
+    "@huggingface/transformers": "^3.7.2",
+    "chromapicker": "^1.0.2",
+    "electron-store": "^10.1.0",
+    "framer-motion": "^12.23.0",
+    "lucide-react": "^0.523.0",
+    "onnxruntime-node": "^1.22.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "@heroui/theme": "2.4.26",
+    "@types/node": "^24.0.4",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "autoprefixer": "10.4.21",
+    "electron": "^37.1.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^3.1.0",
+    "postcss": "8.5.6",
+    "tailwindcss": "3.4.17",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  },
+  "overrides": {
+    "@react-types/shared": "3.35.0"
+  },
+  "build": {
+    "appId": "app.removesimply.desktop",
+    "productName": "Remove.Simply"
+  }
+}

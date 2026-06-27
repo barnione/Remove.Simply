@@ -1,0 +1,19 @@
+appId: app.removesimply.desktop
+productName: Remove.Simply
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - "**/node_modules/onnxruntime-node/**"
+  - "**/node_modules/sharp/**"
+mac:
+  category: public.app-category.graphics-design
+  icon: build/icon.icns
+win:
+  icon: build/icon.ico
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
