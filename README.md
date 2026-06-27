@@ -7,6 +7,14 @@
 
 <br />
 
+<p align="center">
+  <a href="https://github.com/tecnomanu/remove%2Dbackground%2Dlocal">
+    <img src="rm.png" alt="Original rm background project" width="100%" />
+  </a>
+</p>
+
+<br />
+
 <table width="100%" cellpadding="12" cellspacing="0" border="1">
   <tr>
     <td align="center"><strong>Local processing</strong><br />Images are processed on your machine.</td>
