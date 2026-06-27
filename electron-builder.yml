@@ -1,19 +1,50 @@
 appId: app.removesimply.desktop
 productName: Remove.Simply
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   output: release
 files:
   - out/**
   - package.json
+  - "!**/node_modules/onnxruntime-node/bin/napi-v6/linux${/*}"
+  - "!**/node_modules/onnxruntime-node/bin/napi-v6/win32${/*}"
+  - "!**/node_modules/@huggingface/transformers/dist/ort-wasm*"
 asarUnpack:
   - "**/node_modules/onnxruntime-node/**"
   - "**/node_modules/sharp/**"
+  - "**/node_modules/@img/**"
+  - "**/node_modules/@huggingface/**"
 mac:
+  files:
+    - "!**/node_modules/onnxruntime-node/bin/napi-v6/linux${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/napi-v6/win32${/*}"
+    - "!**/node_modules/@img/sharp-linux*${/*}"
+    - "!**/node_modules/@img/sharp-win32*${/*}"
+    - "!**/node_modules/@img/sharp-libvips-linux*${/*}"
   category: public.app-category.graphics-design
   icon: build/icon.icns
+  target:
+    - dmg
 win:
+  files:
+    - "!**/node_modules/onnxruntime-node/bin/napi-v6/linux${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/napi-v6/darwin${/*}"
+    - "!**/node_modules/@img/sharp-linux*${/*}"
+    - "!**/node_modules/@img/sharp-darwin*${/*}"
+    - "!**/node_modules/@img/sharp-libvips-linux*${/*}"
+    - "!**/node_modules/@img/sharp-libvips-darwin*${/*}"
   icon: build/icon.ico
+  target:
+    - nsis
 linux:
+  files:
+    - "!**/node_modules/onnxruntime-node/bin/napi-v6/darwin${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/napi-v6/win32${/*}"
+    - "!**/node_modules/@img/sharp-darwin*${/*}"
+    - "!**/node_modules/@img/sharp-win32*${/*}"
+    - "!**/node_modules/@img/sharp-libvips-darwin*${/*}"
+  category: Graphics
   icon: build/icon.png
+  syncDesktopName: true
   target:
     - AppImage

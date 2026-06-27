@@ -38,6 +38,12 @@ const api = {
     },
     openModels() {
       return ipcRenderer.invoke("window:openModels");
+    },
+    openAbout() {
+      return ipcRenderer.invoke("window:openAbout");
+    },
+    closeAbout() {
+      return ipcRenderer.invoke("window:closeAbout");
     }
   }
 };

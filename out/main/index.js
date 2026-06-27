@@ -1,5 +1,5 @@
 import { app, BrowserWindow, shell, ipcMain } from "electron";
-import { existsSync, rmSync, statSync } from "node:fs";
+import { existsSync, rmSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
 import Store from "electron-store";
@@ -7,6 +7,16 @@ import __cjs_mod__ from "node:module";
 const __filename = import.meta.filename;
 const __dirname = import.meta.dirname;
 const require2 = __cjs_mod__.createRequire(import.meta.url);
+const loaded = /* @__PURE__ */ new Map();
+function getCachedPipeline(modelId) {
+  return loaded.get(modelId);
+}
+function setCachedPipeline(modelId, pipeline) {
+  loaded.set(modelId, pipeline);
+}
+function clearCachedPipeline(modelId) {
+  loaded.delete(modelId);
+}
 const MODEL_REGISTRY = [
   {
     id: "isnet",
@@ -17,39 +27,11 @@ const MODEL_REGISTRY = [
     default: true
   },
   {
-    id: "birefnet",
-    label: "BiRefNet / RMBG 2.0",
-    hfRepo: "briaai/RMBG-2.0",
-    approxSizeMB: 920,
-    speedNote: "High quality, slower"
-  },
-  {
-    id: "u2net",
-    label: "U2Net classic",
-    hfRepo: "Xenova/u2net",
-    approxSizeMB: 176,
-    speedNote: "Classic rembg-style model"
-  },
-  {
-    id: "human-seg",
-    label: "Human segmentation",
-    hfRepo: "Xenova/u2net-human-seg",
-    approxSizeMB: 176,
-    speedNote: "People-focused masks"
-  },
-  {
     id: "portrait",
     label: "Portrait / MODNet",
     hfRepo: "Xenova/modnet",
     approxSizeMB: 26,
-    speedNote: "Portrait-optimized"
-  },
-  {
-    id: "lite",
-    label: "Lite / U2NetP",
-    hfRepo: "Xenova/u2netp",
-    approxSizeMB: 4,
-    speedNote: "Smallest and fastest"
+    speedNote: "Portrait-optimized, fast"
   }
 ];
 const downloading = /* @__PURE__ */ new Set();
@@ -62,14 +44,18 @@ function configureModelCache() {
   process.env.TRANSFORMERS_CACHE = cache;
 }
 function cachePathFor(repo) {
-  return join(modelCacheRoot(), "models--" + repo.replace("/", "--"));
+  return join(modelCacheRoot(), repo);
 }
 function folderSize(path) {
   if (!existsSync(path)) return 0;
   const stat = statSync(path);
   if (stat.isFile()) return stat.size;
-  const { readdirSync } = require2("node:fs");
   return readdirSync(path).reduce((sum, name) => sum + folderSize(join(path, name)), 0);
+}
+function isModelCached(repo) {
+  const onnxDir = join(cachePathFor(repo), "onnx");
+  if (!existsSync(onnxDir)) return false;
+  return readdirSync(onnxDir).some((f) => f.endsWith(".onnx"));
 }
 function getModelEntry(modelId) {
   return MODEL_REGISTRY.find((model) => model.id === modelId) ?? MODEL_REGISTRY[0];
@@ -77,7 +63,7 @@ function getModelEntry(modelId) {
 function listModels() {
   return MODEL_REGISTRY.map((model) => {
     const path = cachePathFor(model.hfRepo);
-    const cached = existsSync(path);
+    const cached = isModelCached(model.hfRepo);
     return {
       ...model,
       cached,
@@ -93,6 +79,7 @@ function emitProgress(progress) {
 }
 async function downloadModel(modelId) {
   const model = getModelEntry(modelId);
+  if (downloading.has(model.id)) return listModels();
   downloading.add(model.id);
   emitProgress({ modelId: model.id, progress: 8, status: "downloading", message: "Starting download" });
   try {
@@ -114,6 +101,7 @@ async function downloadModel(modelId) {
     await pipeline("image-segmentation", model.hfRepo, { progress_callback });
     emitProgress({ modelId: model.id, progress: 100, status: "ready", message: "Ready" });
   } catch (error) {
+    console.error("[models] download error:", error);
     emitProgress({
       modelId: model.id,
       progress: 0,
@@ -129,6 +117,7 @@ function deleteModel(modelId) {
   const model = getModelEntry(modelId);
   const path = cachePathFor(model.hfRepo);
   if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+  clearCachedPipeline(model.id);
   return listModels();
 }
 function mimeForFormat(format) {
@@ -145,7 +134,6 @@ async function encodeOutput(rgba, width, height, format, quality, transparentBac
   if (format === "jpg") return image.jpeg({ quality }).toBuffer();
   return image.png().toBuffer();
 }
-const loadedPipelines = /* @__PURE__ */ new Map();
 function clamp(value) {
   return Math.max(0, Math.min(255, value));
 }
@@ -189,21 +177,19 @@ async function createFallbackMask(input, options) {
   return { rgba: raw, width, height };
 }
 async function getPipeline(modelId) {
-  if (!loadedPipelines.has(modelId)) {
-    loadedPipelines.set(
-      modelId,
-      (async () => {
-        const model = getModelEntry(modelId);
-        const transformers = await import("@huggingface/transformers");
-        const env = transformers.env;
-        env.cacheDir = modelCacheRoot();
-        env.allowLocalModels = true;
-        const pipeline = transformers.pipeline;
-        return pipeline("image-segmentation", model.hfRepo, { local_files_only: true });
-      })()
-    );
-  }
-  return loadedPipelines.get(modelId);
+  const cached = getCachedPipeline(modelId);
+  if (cached) return cached;
+  const pending = (async () => {
+    const model = getModelEntry(modelId);
+    const transformers = await import("@huggingface/transformers");
+    const env = transformers.env;
+    env.cacheDir = modelCacheRoot();
+    env.allowLocalModels = true;
+    const pipeline = transformers.pipeline;
+    return pipeline("image-segmentation", model.hfRepo, { local_files_only: true });
+  })();
+  setCachedPipeline(modelId, pending);
+  return pending;
 }
 async function tryModelMask(input, options) {
   try {
@@ -284,6 +270,7 @@ function setSettings(patch) {
 let mainWindow = null;
 let settingsWindow = null;
 let modelsWindow = null;
+let aboutWindow = null;
 const preload = join(__dirname, "../preload/index.mjs");
 const iconPath = join(process.cwd(), "build/icon.png");
 function loadRenderer(window, entry) {
@@ -380,6 +367,45 @@ function openModelsWindow() {
   });
   loadRenderer(modelsWindow, "models");
 }
+function openAboutWindow() {
+  if (aboutWindow) {
+    aboutWindow.focus();
+    return;
+  }
+  aboutWindow = new BrowserWindow({
+    width: 380,
+    height: 260,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    frame: false,
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: "#0f0f12",
+    parent: mainWindow ?? void 0,
+    modal: false,
+    skipTaskbar: true,
+    webPreferences: {
+      preload,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  });
+  aboutWindow.once("ready-to-show", () => aboutWindow?.show());
+  aboutWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+  aboutWindow.on("closed", () => {
+    aboutWindow = null;
+  });
+  loadRenderer(aboutWindow, "about");
+}
+function closeAboutWindow() {
+  aboutWindow?.close();
+}
 function installAppWindowHandlers() {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
@@ -405,6 +431,8 @@ function registerIpcHandlers() {
   ipcMain.handle("models:delete", (_event, modelId) => deleteModel(modelId));
   ipcMain.handle("window:openSettings", () => openSettingsWindow());
   ipcMain.handle("window:openModels", () => openModelsWindow());
+  ipcMain.handle("window:openAbout", () => openAboutWindow());
+  ipcMain.handle("window:closeAbout", () => closeAboutWindow());
 }
 app.commandLine.appendSwitch("enable-features", "SharedArrayBuffer");
 configureModelCache();

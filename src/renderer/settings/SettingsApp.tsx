@@ -163,7 +163,7 @@ export function SettingsApp() {
             label={
               <FieldLabel
                 text="Default model"
-                hint="The AI segmentation model used to detect the subject. Heavier models (e.g. BiRefNet) are more accurate but slower. Lighter ones (U²-Net Lite) are fast and small."
+                hint="The AI segmentation model used to detect the subject. RMBG 1.4 is a great all-rounder; MODNet is optimized for portraits."
               />
             }
             size="sm"

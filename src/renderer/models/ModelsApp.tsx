@@ -99,6 +99,12 @@ export function ModelsApp() {
                   />
                 )}
 
+                {modelProgress?.status === "error" && (
+                  <p className="text-tiny text-danger">
+                    {modelProgress.message ?? "Download failed"}
+                  </p>
+                )}
+
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-tiny text-default-500">
                     {model.cached

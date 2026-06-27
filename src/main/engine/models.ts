@@ -16,39 +16,11 @@ export const MODEL_REGISTRY: RegistryEntry[] = [
     default: true
   },
   {
-    id: "birefnet",
-    label: "BiRefNet / RMBG 2.0",
-    hfRepo: "briaai/RMBG-2.0",
-    approxSizeMB: 920,
-    speedNote: "High quality, slower"
-  },
-  {
-    id: "u2net",
-    label: "U2Net classic",
-    hfRepo: "Xenova/u2net",
-    approxSizeMB: 176,
-    speedNote: "Classic rembg-style model"
-  },
-  {
-    id: "human-seg",
-    label: "Human segmentation",
-    hfRepo: "Xenova/u2net-human-seg",
-    approxSizeMB: 176,
-    speedNote: "People-focused masks"
-  },
-  {
     id: "portrait",
     label: "Portrait / MODNet",
     hfRepo: "Xenova/modnet",
     approxSizeMB: 26,
-    speedNote: "Portrait-optimized"
-  },
-  {
-    id: "lite",
-    label: "Lite / U2NetP",
-    hfRepo: "Xenova/u2netp",
-    approxSizeMB: 4,
-    speedNote: "Smallest and fastest"
+    speedNote: "Portrait-optimized, fast"
   }
 ];
 
@@ -65,7 +37,7 @@ export function configureModelCache(): void {
 }
 
 function cachePathFor(repo: string): string {
-  return join(modelCacheRoot(), "models--" + repo.replace("/", "--"));
+  return join(modelCacheRoot(), repo);
 }
 
 function folderSize(path: string): number {
@@ -76,13 +48,9 @@ function folderSize(path: string): number {
 }
 
 function isModelCached(repo: string): boolean {
-  const path = cachePathFor(repo);
-  if (!existsSync(path)) return false;
-  const snapshots = join(path, "snapshots");
-  if (!existsSync(snapshots)) return false;
-  return readdirSync(snapshots).some(
-    (snapshot) => readdirSync(join(snapshots, snapshot)).length > 0
-  );
+  const onnxDir = join(cachePathFor(repo), "onnx");
+  if (!existsSync(onnxDir)) return false;
+  return readdirSync(onnxDir).some((f) => f.endsWith(".onnx"));
 }
 
 export function getModelEntry(modelId: string): RegistryEntry {
@@ -139,6 +107,7 @@ export async function downloadModel(modelId: string): Promise<ModelInfo[]> {
     await pipeline("image-segmentation", model.hfRepo, { progress_callback });
     emitProgress({ modelId: model.id, progress: 100, status: "ready", message: "Ready" });
   } catch (error) {
+    console.error("[models] download error:", error);
     emitProgress({
       modelId: model.id,
       progress: 0,
