@@ -69,7 +69,7 @@ export function ModelsApp() {
                       )}
                     </div>
                     <p className="truncate text-tiny text-default-500">
-                      {model.hfRepo} · ~{model.approxSizeMB} MB · {model.speedNote}
+                      {model.family} · ~{model.approxSizeMB} MB · {model.speedNote}
                     </p>
                   </div>
                   <Chip

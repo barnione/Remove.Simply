@@ -163,7 +163,7 @@ export function SettingsApp() {
             label={
               <FieldLabel
                 text="Default model"
-                hint="The AI segmentation model used to detect the subject. RMBG 1.4 is a great all-rounder; MODNet is optimized for portraits."
+                hint="The AI segmentation model. ISNet General is a great all-rounder; BiRefNet models offer higher quality but are larger."
               />
             }
             size="sm"

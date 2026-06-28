@@ -3,10 +3,13 @@ export type ExecutionProvider = "cpu" | "coreml";
 
 export type ModelStatus = "ready" | "missing" | "downloading";
 
+export type ModelFamily = "u2net" | "isnet" | "birefnet";
+
 export interface ModelInfo {
   id: string;
   label: string;
-  hfRepo: string;
+  family: ModelFamily;
+  onnxFile: string;
   approxSizeMB: number;
   speedNote: string;
   default?: boolean;

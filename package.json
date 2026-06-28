@@ -16,9 +16,8 @@
     "dist:all": "pnpm build && electron-builder --mac --x64 --arm64 && electron-builder --win --x64 && electron-builder --linux --x64"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.7.2",
     "electron-store": "^10.1.0",
-    "onnxruntime-node": "^1.22.0",
+    "onnxruntime-node": "1.21.0",
     "sharp": "^0.34.2"
   },
   "optionalDependencies": {

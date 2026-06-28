@@ -1,26 +1,94 @@
 import { app, BrowserWindow } from "electron";
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import type { DownloadProgress, ModelInfo } from "../../types";
+import type { DownloadProgress, ModelFamily, ModelInfo } from "../../types";
 import { clearCachedPipeline } from "./pipelineCache";
+
+const RELEASE_BASE = "https://github.com/danielgatis/rembg/releases/download/v0.0.0";
 
 type RegistryEntry = Omit<ModelInfo, "cached" | "sizeOnDiskMB" | "status">;
 
 export const MODEL_REGISTRY: RegistryEntry[] = [
   {
-    id: "isnet",
-    label: "ISNet / RMBG 1.4",
-    hfRepo: "briaai/RMBG-1.4",
-    approxSizeMB: 176,
-    speedNote: "Best default balance",
+    id: "isnet-general",
+    label: "ISNet General",
+    family: "isnet",
+    onnxFile: "isnet-general-use.onnx",
+    approxSizeMB: 170,
+    speedNote: "Great all-rounder",
     default: true
   },
   {
-    id: "portrait",
-    label: "Portrait / MODNet",
-    hfRepo: "Xenova/modnet",
-    approxSizeMB: 26,
-    speedNote: "Portrait-optimized, fast"
+    id: "u2net",
+    label: "U2-Net",
+    family: "u2net",
+    onnxFile: "u2net.onnx",
+    approxSizeMB: 168,
+    speedNote: "Classic, reliable"
+  },
+  {
+    id: "u2netp",
+    label: "U2-Net Lite",
+    family: "u2net",
+    onnxFile: "u2netp.onnx",
+    approxSizeMB: 4,
+    speedNote: "Very fast, lower quality"
+  },
+  {
+    id: "u2net-human",
+    label: "U2-Net Human Seg",
+    family: "u2net",
+    onnxFile: "u2net_human_seg.onnx",
+    approxSizeMB: 168,
+    speedNote: "Optimized for people"
+  },
+  {
+    id: "silueta",
+    label: "Silueta",
+    family: "u2net",
+    onnxFile: "silueta.onnx",
+    approxSizeMB: 42,
+    speedNote: "Lightweight, decent quality"
+  },
+  {
+    id: "isnet-anime",
+    label: "ISNet Anime",
+    family: "isnet",
+    onnxFile: "isnet-anime.onnx",
+    approxSizeMB: 168,
+    speedNote: "Optimized for anime/illustration"
+  },
+  {
+    id: "birefnet-general",
+    label: "BiRefNet General",
+    family: "birefnet",
+    onnxFile: "BiRefNet-general-epoch_244.onnx",
+    approxSizeMB: 927,
+    speedNote: "High quality, large"
+  },
+  {
+    id: "birefnet-general-lite",
+    label: "BiRefNet General Lite",
+    family: "birefnet",
+    onnxFile: "BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx",
+    approxSizeMB: 214,
+    speedNote: "Good quality, lighter"
+  },
+  {
+    id: "birefnet-portrait",
+    label: "BiRefNet Portrait",
+    family: "birefnet",
+    onnxFile: "BiRefNet-portrait-epoch_150.onnx",
+    approxSizeMB: 927,
+    speedNote: "Best for portraits, large"
+  },
+  {
+    id: "birefnet-massive",
+    label: "BiRefNet Massive",
+    family: "birefnet",
+    onnxFile: "BiRefNet-massive-TR_DIS5K_TR_TEs-epoch_420.onnx",
+    approxSizeMB: 927,
+    speedNote: "Highest quality, very large"
   }
 ];
 
@@ -32,39 +100,40 @@ export function modelCacheRoot(): string {
 
 export function configureModelCache(): void {
   const cache = modelCacheRoot();
-  process.env.HF_HOME = cache;
-  process.env.TRANSFORMERS_CACHE = cache;
+  if (!existsSync(cache)) mkdirSync(cache, { recursive: true });
 }
 
-function cachePathFor(repo: string): string {
-  return join(modelCacheRoot(), repo);
+function onnxPathFor(onnxFile: string): string {
+  return join(modelCacheRoot(), onnxFile);
 }
 
-function folderSize(path: string): number {
-  if (!existsSync(path)) return 0;
-  const stat = statSync(path);
-  if (stat.isFile()) return stat.size;
-  return readdirSync(path).reduce((sum, name) => sum + folderSize(join(path, name)), 0);
-}
-
-function isModelCached(repo: string): boolean {
-  const onnxDir = join(cachePathFor(repo), "onnx");
-  if (!existsSync(onnxDir)) return false;
-  return readdirSync(onnxDir).some((f) => f.endsWith(".onnx"));
+function isModelCached(onnxFile: string): boolean {
+  return existsSync(onnxPathFor(onnxFile));
 }
 
 export function getModelEntry(modelId: string): RegistryEntry {
   return MODEL_REGISTRY.find((model) => model.id === modelId) ?? MODEL_REGISTRY[0];
 }
 
+export function getOnnxPath(modelId: string): string {
+  return onnxPathFor(getModelEntry(modelId).onnxFile);
+}
+
+export function getModelFamily(modelId: string): ModelFamily {
+  return getModelEntry(modelId).family;
+}
+
 export function listModels(): ModelInfo[] {
   return MODEL_REGISTRY.map((model) => {
-    const path = cachePathFor(model.hfRepo);
-    const cached = isModelCached(model.hfRepo);
+    const path = onnxPathFor(model.onnxFile);
+    const cached = isModelCached(model.onnxFile);
+    const sizeOnDiskMB = cached
+      ? Math.round((statSync(path).size / 1024 / 1024) * 10) / 10
+      : 0;
     return {
       ...model,
       cached,
-      sizeOnDiskMB: Math.round((folderSize(path) / 1024 / 1024) * 10) / 10,
+      sizeOnDiskMB,
       status: downloading.has(model.id) ? "downloading" : cached ? "ready" : "missing"
     };
   });
@@ -80,31 +149,47 @@ export async function downloadModel(modelId: string): Promise<ModelInfo[]> {
   const model = getModelEntry(modelId);
   if (downloading.has(model.id)) return listModels();
   downloading.add(model.id);
-  emitProgress({ modelId: model.id, progress: 8, status: "downloading", message: "Starting download" });
+  emitProgress({ modelId: model.id, progress: 5, status: "downloading", message: "Starting download" });
 
   try {
-    const transformers = await import("@huggingface/transformers");
-    const env = transformers.env as unknown as { cacheDir?: string; allowLocalModels?: boolean };
-    env.cacheDir = modelCacheRoot();
-    env.allowLocalModels = true;
+    const url = `${RELEASE_BASE}/${model.onnxFile}`;
+    const dest = onnxPathFor(model.onnxFile);
+    mkdirSync(modelCacheRoot(), { recursive: true });
 
-    const progress_callback = (event: { status?: string; progress?: number; file?: string }) => {
-      if (typeof event.progress === "number") {
+    const response = await fetch(url, { redirect: "follow" });
+    if (!response.ok || !response.body) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const contentLength = Number(response.headers.get("content-length") ?? 0);
+    const fileStream = createWriteStream(dest);
+    let downloaded = 0;
+
+    const reader = response.body.getReader();
+    await reader.read().then(function pump({ done, value }): Promise<void> | void {
+      if (done) {
+        fileStream.end();
+        return;
+      }
+      fileStream.write(value);
+      downloaded += value.byteLength;
+      if (contentLength > 0) {
+        const pct = Math.max(5, Math.min(98, Math.round((downloaded / contentLength) * 100)));
         emitProgress({
           modelId: model.id,
-          progress: Math.max(8, Math.min(98, event.progress)),
+          progress: pct,
           status: "downloading",
-          message: event.file ?? event.status
+          message: `${Math.round(downloaded / 1024 / 1024)} / ${Math.round(contentLength / 1024 / 1024)} MB`
         });
       }
-    };
+      return reader.read().then(pump);
+    });
 
-    const pipeline = transformers.pipeline as unknown as (
-      task: string,
-      modelName: string,
-      options?: Record<string, unknown>
-    ) => Promise<unknown>;
-    await pipeline("image-segmentation", model.hfRepo, { progress_callback });
+    await new Promise<void>((resolve, reject) => {
+      fileStream.on("finish", resolve);
+      fileStream.on("error", reject);
+    });
+
     emitProgress({ modelId: model.id, progress: 100, status: "ready", message: "Ready" });
   } catch (error) {
     console.error("[models] download error:", error);
@@ -123,8 +208,8 @@ export async function downloadModel(modelId: string): Promise<ModelInfo[]> {
 
 export function deleteModel(modelId: string): ModelInfo[] {
   const model = getModelEntry(modelId);
-  const path = cachePathFor(model.hfRepo);
-  if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+  const path = onnxPathFor(model.onnxFile);
+  if (existsSync(path)) rmSync(path, { force: true });
   clearCachedPipeline(model.id);
   return listModels();
 }

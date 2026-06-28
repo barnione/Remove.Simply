@@ -1,5 +1,5 @@
 import { app, BrowserWindow, shell, ipcMain } from "electron";
-import { existsSync, rmSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync, createWriteStream, rmSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
 import Store from "electron-store";
@@ -17,21 +17,88 @@ function setCachedPipeline(modelId, pipeline) {
 function clearCachedPipeline(modelId) {
   loaded.delete(modelId);
 }
+const RELEASE_BASE = "https://github.com/danielgatis/rembg/releases/download/v0.0.0";
 const MODEL_REGISTRY = [
   {
-    id: "isnet",
-    label: "ISNet / RMBG 1.4",
-    hfRepo: "briaai/RMBG-1.4",
-    approxSizeMB: 176,
-    speedNote: "Best default balance",
+    id: "isnet-general",
+    label: "ISNet General",
+    family: "isnet",
+    onnxFile: "isnet-general-use.onnx",
+    approxSizeMB: 170,
+    speedNote: "Great all-rounder",
     default: true
   },
   {
-    id: "portrait",
-    label: "Portrait / MODNet",
-    hfRepo: "Xenova/modnet",
-    approxSizeMB: 26,
-    speedNote: "Portrait-optimized, fast"
+    id: "u2net",
+    label: "U2-Net",
+    family: "u2net",
+    onnxFile: "u2net.onnx",
+    approxSizeMB: 168,
+    speedNote: "Classic, reliable"
+  },
+  {
+    id: "u2netp",
+    label: "U2-Net Lite",
+    family: "u2net",
+    onnxFile: "u2netp.onnx",
+    approxSizeMB: 4,
+    speedNote: "Very fast, lower quality"
+  },
+  {
+    id: "u2net-human",
+    label: "U2-Net Human Seg",
+    family: "u2net",
+    onnxFile: "u2net_human_seg.onnx",
+    approxSizeMB: 168,
+    speedNote: "Optimized for people"
+  },
+  {
+    id: "silueta",
+    label: "Silueta",
+    family: "u2net",
+    onnxFile: "silueta.onnx",
+    approxSizeMB: 42,
+    speedNote: "Lightweight, decent quality"
+  },
+  {
+    id: "isnet-anime",
+    label: "ISNet Anime",
+    family: "isnet",
+    onnxFile: "isnet-anime.onnx",
+    approxSizeMB: 168,
+    speedNote: "Optimized for anime/illustration"
+  },
+  {
+    id: "birefnet-general",
+    label: "BiRefNet General",
+    family: "birefnet",
+    onnxFile: "BiRefNet-general-epoch_244.onnx",
+    approxSizeMB: 927,
+    speedNote: "High quality, large"
+  },
+  {
+    id: "birefnet-general-lite",
+    label: "BiRefNet General Lite",
+    family: "birefnet",
+    onnxFile: "BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx",
+    approxSizeMB: 214,
+    speedNote: "Good quality, lighter"
+  },
+  {
+    id: "birefnet-portrait",
+    label: "BiRefNet Portrait",
+    family: "birefnet",
+    onnxFile: "BiRefNet-portrait-epoch_150.onnx",
+    approxSizeMB: 927,
+    speedNote: "Best for portraits, large"
+  },
+  {
+    id: "birefnet-massive",
+    label: "BiRefNet Massive",
+    family: "birefnet",
+    onnxFile: "BiRefNet-massive-TR_DIS5K_TR_TEs-epoch_420.onnx",
+    approxSizeMB: 927,
+    speedNote: "Highest quality, very large"
   }
 ];
 const downloading = /* @__PURE__ */ new Set();
@@ -40,34 +107,32 @@ function modelCacheRoot() {
 }
 function configureModelCache() {
   const cache = modelCacheRoot();
-  process.env.HF_HOME = cache;
-  process.env.TRANSFORMERS_CACHE = cache;
+  if (!existsSync(cache)) mkdirSync(cache, { recursive: true });
 }
-function cachePathFor(repo) {
-  return join(modelCacheRoot(), repo);
+function onnxPathFor(onnxFile) {
+  return join(modelCacheRoot(), onnxFile);
 }
-function folderSize(path) {
-  if (!existsSync(path)) return 0;
-  const stat = statSync(path);
-  if (stat.isFile()) return stat.size;
-  return readdirSync(path).reduce((sum, name) => sum + folderSize(join(path, name)), 0);
-}
-function isModelCached(repo) {
-  const onnxDir = join(cachePathFor(repo), "onnx");
-  if (!existsSync(onnxDir)) return false;
-  return readdirSync(onnxDir).some((f) => f.endsWith(".onnx"));
+function isModelCached(onnxFile) {
+  return existsSync(onnxPathFor(onnxFile));
 }
 function getModelEntry(modelId) {
   return MODEL_REGISTRY.find((model) => model.id === modelId) ?? MODEL_REGISTRY[0];
 }
+function getOnnxPath(modelId) {
+  return onnxPathFor(getModelEntry(modelId).onnxFile);
+}
+function getModelFamily(modelId) {
+  return getModelEntry(modelId).family;
+}
 function listModels() {
   return MODEL_REGISTRY.map((model) => {
-    const path = cachePathFor(model.hfRepo);
-    const cached = isModelCached(model.hfRepo);
+    const path = onnxPathFor(model.onnxFile);
+    const cached = isModelCached(model.onnxFile);
+    const sizeOnDiskMB = cached ? Math.round(statSync(path).size / 1024 / 1024 * 10) / 10 : 0;
     return {
       ...model,
       cached,
-      sizeOnDiskMB: Math.round(folderSize(path) / 1024 / 1024 * 10) / 10,
+      sizeOnDiskMB,
       status: downloading.has(model.id) ? "downloading" : cached ? "ready" : "missing"
     };
   });
@@ -81,24 +146,41 @@ async function downloadModel(modelId) {
   const model = getModelEntry(modelId);
   if (downloading.has(model.id)) return listModels();
   downloading.add(model.id);
-  emitProgress({ modelId: model.id, progress: 8, status: "downloading", message: "Starting download" });
+  emitProgress({ modelId: model.id, progress: 5, status: "downloading", message: "Starting download" });
   try {
-    const transformers = await import("@huggingface/transformers");
-    const env = transformers.env;
-    env.cacheDir = modelCacheRoot();
-    env.allowLocalModels = true;
-    const progress_callback = (event) => {
-      if (typeof event.progress === "number") {
+    const url = `${RELEASE_BASE}/${model.onnxFile}`;
+    const dest = onnxPathFor(model.onnxFile);
+    mkdirSync(modelCacheRoot(), { recursive: true });
+    const response = await fetch(url, { redirect: "follow" });
+    if (!response.ok || !response.body) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const contentLength = Number(response.headers.get("content-length") ?? 0);
+    const fileStream = createWriteStream(dest);
+    let downloaded = 0;
+    const reader = response.body.getReader();
+    await reader.read().then(function pump({ done, value }) {
+      if (done) {
+        fileStream.end();
+        return;
+      }
+      fileStream.write(value);
+      downloaded += value.byteLength;
+      if (contentLength > 0) {
+        const pct = Math.max(5, Math.min(98, Math.round(downloaded / contentLength * 100)));
         emitProgress({
           modelId: model.id,
-          progress: Math.max(8, Math.min(98, event.progress)),
+          progress: pct,
           status: "downloading",
-          message: event.file ?? event.status
+          message: `${Math.round(downloaded / 1024 / 1024)} / ${Math.round(contentLength / 1024 / 1024)} MB`
         });
       }
-    };
-    const pipeline = transformers.pipeline;
-    await pipeline("image-segmentation", model.hfRepo, { progress_callback });
+      return reader.read().then(pump);
+    });
+    await new Promise((resolve, reject) => {
+      fileStream.on("finish", resolve);
+      fileStream.on("error", reject);
+    });
     emitProgress({ modelId: model.id, progress: 100, status: "ready", message: "Ready" });
   } catch (error) {
     console.error("[models] download error:", error);
@@ -115,8 +197,8 @@ async function downloadModel(modelId) {
 }
 function deleteModel(modelId) {
   const model = getModelEntry(modelId);
-  const path = cachePathFor(model.hfRepo);
-  if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+  const path = onnxPathFor(model.onnxFile);
+  if (existsSync(path)) rmSync(path, { force: true });
   clearCachedPipeline(model.id);
   return listModels();
 }
@@ -134,6 +216,11 @@ async function encodeOutput(rgba, width, height, format, quality, transparentBac
   if (format === "jpg") return image.jpeg({ quality }).toBuffer();
   return image.png().toBuffer();
 }
+const MODEL_CONFIGS = {
+  u2net: { size: 320, mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225] },
+  isnet: { size: 1024, mean: [0.5, 0.5, 0.5], std: [1, 1, 1] },
+  birefnet: { size: 1024, mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225] }
+};
 function clamp(value) {
   return Math.max(0, Math.min(255, value));
 }
@@ -176,36 +263,82 @@ async function createFallbackMask(input, options) {
   }
   return { rgba: raw, width, height };
 }
+function buildPreprocessor(family) {
+  const { size, mean, std } = MODEL_CONFIGS[family];
+  return async (input) => {
+    const pixels = await sharp(input).rotate().resize(size, size, { fit: "fill" }).removeAlpha().raw().toBuffer();
+    const float = new Float32Array(3 * size * size);
+    for (let i = 0; i < size * size; i++) {
+      float[i] = (pixels[i * 3] / 255 - mean[0]) / std[0];
+      float[size * size + i] = (pixels[i * 3 + 1] / 255 - mean[1]) / std[1];
+      float[2 * size * size + i] = (pixels[i * 3 + 2] / 255 - mean[2]) / std[2];
+    }
+    return float;
+  };
+}
+function postprocessMask(output, family, size) {
+  const useSigmoid = family === "birefnet";
+  const pixelCount = size * size;
+  const mask = new Uint8Array(pixelCount);
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 0; i < pixelCount; i++) {
+    let v = output[i];
+    if (useSigmoid) v = 1 / (1 + Math.exp(-v));
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const range = max - min || 1;
+  for (let i = 0; i < pixelCount; i++) {
+    let v = output[i];
+    if (useSigmoid) v = 1 / (1 + Math.exp(-v));
+    mask[i] = clamp(Math.round((v - min) / range * 255));
+  }
+  return mask;
+}
 async function getPipeline(modelId) {
   const cached = getCachedPipeline(modelId);
   if (cached) return cached;
   const pending = (async () => {
-    const model = getModelEntry(modelId);
-    const transformers = await import("@huggingface/transformers");
-    const env = transformers.env;
-    env.cacheDir = modelCacheRoot();
-    env.allowLocalModels = true;
-    const pipeline = transformers.pipeline;
-    return pipeline("image-segmentation", model.hfRepo, { local_files_only: true });
+    const ort = await import("onnxruntime-node");
+    const onnxPath = getOnnxPath(modelId);
+    const family = getModelFamily(modelId);
+    const { size } = MODEL_CONFIGS[family];
+    const session = await ort.InferenceSession.create(onnxPath);
+    const preprocess = buildPreprocessor(family);
+    const inputName = session.inputNames[0];
+    return async (input) => {
+      const metadata = await sharp(input).rotate().metadata();
+      const origW = metadata.width ?? 1;
+      const origH = metadata.height ?? 1;
+      const floatData = await preprocess(input);
+      const tensor = new ort.Tensor("float32", floatData, [1, 3, size, size]);
+      const results = await session.run({ [inputName]: tensor });
+      const outputTensor = results[session.outputNames[0]];
+      const rawMask = postprocessMask(outputTensor.data, family, size);
+      const maskResized = await sharp(Buffer.from(rawMask), { raw: { width: size, height: size, channels: 1 } }).resize(origW, origH, { fit: "fill" }).raw().toBuffer();
+      const source = await sharp(input).rotate().resize(origW, origH).ensureAlpha().raw().toBuffer();
+      for (let i = 0; i < origW * origH; i++) {
+        source[i * 4 + 3] = maskResized[i];
+      }
+      return { rgba: source, width: origW, height: origH };
+    };
   })();
   setCachedPipeline(modelId, pending);
   return pending;
 }
 async function tryModelMask(input, options) {
   try {
-    const segment = await getPipeline(options.modelId);
-    const result = await segment(input);
-    const first = Array.isArray(result) ? result[0] : result;
-    const mask = first?.mask;
-    if (!mask?.data || !mask.width || !mask.height) return null;
-    const source = await sharp(input).rotate().resize(mask.width, mask.height, { fit: "fill" }).ensureAlpha().raw().toBuffer();
-    const maskData = mask.data;
-    for (let pixel = 0; pixel < mask.width * mask.height; pixel++) {
-      const alpha = maskData[pixel * 4 + 3] ?? maskData[pixel] ?? 0;
-      source[pixel * 4 + 3] = applyAlphaSettings(alpha, options);
+    const pipeline = await getPipeline(options.modelId);
+    const result = await pipeline(input);
+    if (options.alphaMatting.enabled) {
+      for (let i = 0; i < result.width * result.height; i++) {
+        result.rgba[i * 4 + 3] = applyAlphaSettings(result.rgba[i * 4 + 3], options);
+      }
     }
-    return { rgba: source, width: mask.width, height: mask.height };
-  } catch {
+    return result;
+  } catch (err) {
+    console.error("[remover] model inference failed:", err);
     return null;
   }
 }

@@ -6,18 +6,14 @@ directories:
 files:
   - out/**
   - package.json
-  - "!**/node_modules/onnxruntime-node/bin/napi-v6/linux${/*}"
-  - "!**/node_modules/onnxruntime-node/bin/napi-v6/win32${/*}"
-  - "!**/node_modules/@huggingface/transformers/dist/ort-wasm*"
 asarUnpack:
   - "**/node_modules/onnxruntime-node/**"
   - "**/node_modules/sharp/**"
   - "**/node_modules/@img/**"
-  - "**/node_modules/@huggingface/**"
 mac:
   files:
-    - "!**/node_modules/onnxruntime-node/bin/napi-v6/linux${/*}"
-    - "!**/node_modules/onnxruntime-node/bin/napi-v6/win32${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/**/linux${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/**/win32${/*}"
     - "!**/node_modules/@img/sharp-linux*${/*}"
     - "!**/node_modules/@img/sharp-win32*${/*}"
     - "!**/node_modules/@img/sharp-libvips-linux*${/*}"
@@ -27,8 +23,8 @@ mac:
     - dmg
 win:
   files:
-    - "!**/node_modules/onnxruntime-node/bin/napi-v6/linux${/*}"
-    - "!**/node_modules/onnxruntime-node/bin/napi-v6/darwin${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/**/linux${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/**/darwin${/*}"
     - "!**/node_modules/@img/sharp-linux*${/*}"
     - "!**/node_modules/@img/sharp-darwin*${/*}"
     - "!**/node_modules/@img/sharp-libvips-linux*${/*}"
@@ -38,8 +34,8 @@ win:
     - nsis
 linux:
   files:
-    - "!**/node_modules/onnxruntime-node/bin/napi-v6/darwin${/*}"
-    - "!**/node_modules/onnxruntime-node/bin/napi-v6/win32${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/**/darwin${/*}"
+    - "!**/node_modules/onnxruntime-node/bin/**/win32${/*}"
     - "!**/node_modules/@img/sharp-darwin*${/*}"
     - "!**/node_modules/@img/sharp-win32*${/*}"
     - "!**/node_modules/@img/sharp-libvips-darwin*${/*}"
