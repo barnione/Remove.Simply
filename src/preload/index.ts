@@ -13,6 +13,9 @@ const api: RemoveSimplyApi = {
     set(patch: Partial<AppSettings>): Promise<AppSettings> {
       return ipcRenderer.invoke("settings:set", patch) as Promise<AppSettings>;
     },
+    defaults(): Promise<AppSettings> {
+      return ipcRenderer.invoke("settings:defaults") as Promise<AppSettings>;
+    },
     onChanged(callback: (settings: AppSettings) => void): () => void {
       const listener = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings);
       ipcRenderer.on("settings:changed", listener);

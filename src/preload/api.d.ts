@@ -5,6 +5,7 @@ export interface RemoveSimplyApi {
   settings: {
     get(): Promise<AppSettings>;
     set(patch: Partial<AppSettings>): Promise<AppSettings>;
+    defaults(): Promise<AppSettings>;
     onChanged(callback: (settings: AppSettings) => void): () => void;
   };
   models: {

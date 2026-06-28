@@ -270,12 +270,17 @@ async function createFallbackMask(input, options) {
 }
 async function preprocess(input, family) {
   const { size, mean, std } = MODEL_CONFIGS[family];
-  const pixels = await sharp(input).rotate().resize(size, size, { fit: "fill" }).removeAlpha().raw().toBuffer();
+  const pixels = await sharp(input).rotate().resize(size, size, { fit: "fill", kernel: "lanczos3" }).removeAlpha().raw().toBuffer();
+  let maxVal = 0;
+  for (let i = 0; i < pixels.length; i++) {
+    if (pixels[i] > maxVal) maxVal = pixels[i];
+  }
+  const norm = Math.max(maxVal, 1);
   const float = new Float32Array(3 * size * size);
   for (let i = 0; i < size * size; i++) {
-    float[i] = (pixels[i * 3] / 255 - mean[0]) / std[0];
-    float[size * size + i] = (pixels[i * 3 + 1] / 255 - mean[1]) / std[1];
-    float[2 * size * size + i] = (pixels[i * 3 + 2] / 255 - mean[2]) / std[2];
+    float[i] = (pixels[i * 3] / norm - mean[0]) / std[0];
+    float[size * size + i] = (pixels[i * 3 + 1] / norm - mean[1]) / std[1];
+    float[2 * size * size + i] = (pixels[i * 3 + 2] / norm - mean[2]) / std[2];
   }
   return float;
 }
@@ -347,7 +352,7 @@ async function tryModelMask(input, options) {
       options.executionProvider
     );
     const rawMask = postprocessMask(outputData, family, size);
-    const maskResized = await sharp(Buffer.from(rawMask), { raw: { width: size, height: size, channels: 1 } }).resize(origW, origH, { fit: "fill" }).raw().toBuffer();
+    const maskResized = await sharp(Buffer.from(rawMask), { raw: { width: size, height: size, channels: 1 } }).resize(origW, origH, { fit: "fill", kernel: "lanczos3" }).raw().toBuffer();
     const source = await sharp(input).rotate().resize(origW, origH).ensureAlpha().raw().toBuffer();
     for (let i = 0; i < origW * origH; i++) {
       source[i * 4 + 3] = maskResized[i];
@@ -590,6 +595,7 @@ function registerIpcHandlers() {
     return removeBackground(Buffer.from(input), options);
   });
   ipcMain.handle("settings:get", () => getSettings());
+  ipcMain.handle("settings:defaults", () => DEFAULT_SETTINGS);
   ipcMain.handle("settings:set", (_event, patch) => {
     const next = setSettings(patch);
     broadcastSettings(next);

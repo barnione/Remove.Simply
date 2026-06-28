@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
   parseColor
 } from "@heroui/react";
-import { ExternalLink, HelpCircle, Shuffle } from "lucide-react";
+import { ExternalLink, HelpCircle, RotateCcw, Shuffle } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { BrandGlyph } from "../shared/BrandGlyph";
 import type { AppSettings, ModelInfo } from "../../types";
@@ -120,13 +120,30 @@ function SolidBackgroundColorPicker({
   );
 }
 
-function SectionHeading({ title, hint }: { title: string; hint?: string }) {
+function SectionHeading({ title, hint, onReset }: { title: string; hint?: string; onReset?: () => void }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <h2 className="text-small font-semibold uppercase tracking-wide text-muted">
-        {title}
-      </h2>
-      {hint && <p className="text-tiny text-muted">{hint}</p>}
+    <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-col gap-0.5">
+        <h2 className="text-small font-semibold uppercase tracking-wide text-muted">
+          {title}
+        </h2>
+        {hint && <p className="text-tiny text-muted">{hint}</p>}
+      </div>
+      {onReset && (
+        <Tooltip>
+          <TooltipTrigger>
+            <button
+              type="button"
+              onClick={onReset}
+              aria-label={`Reset ${title.toLowerCase()} to defaults`}
+              className="inline-flex cursor-pointer items-center rounded-small p-1 text-muted transition hover:bg-default-100 hover:text-foreground"
+            >
+              <RotateCcw size={13} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="text-tiny">Reset to defaults</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   );
 }
@@ -161,16 +178,47 @@ function FieldLabel({ text, hint }: { text: string; hint: ReactNode }) {
 
 export function SettingsApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [defaults, setDefaults] = useState<AppSettings | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
 
   useEffect(() => {
     void window.api.settings.get().then(setSettings);
+    void window.api.settings.defaults().then(setDefaults);
     void window.api.models.list().then(setModels);
     return window.api.settings.onChanged(setSettings);
   }, []);
 
   const save = (patch: Partial<AppSettings>) => {
     void window.api.settings.set(patch).then(setSettings);
+  };
+
+  const resetOutput = () => {
+    if (!defaults) return;
+    save({
+      outputFormat: defaults.outputFormat,
+      outputQuality: defaults.outputQuality,
+      transparentBackground: defaults.transparentBackground,
+      backgroundColor: defaults.backgroundColor
+    });
+  };
+
+  const resetEngine = () => {
+    if (!defaults) return;
+    save({
+      defaultModel: defaults.defaultModel,
+      executionProvider: defaults.executionProvider,
+      maxUploadSizeMB: defaults.maxUploadSizeMB
+    });
+  };
+
+  const resetAdvanced = () => {
+    if (!defaults) return;
+    save({ alphaMatting: defaults.alphaMatting });
+  };
+
+  const resetApp = () => {
+    if (!defaults) return;
+    save({ autoUpdatesEnabled: defaults.autoUpdatesEnabled });
   };
 
   if (!settings) return null;
@@ -189,7 +237,7 @@ export function SettingsApp() {
           </p>
 
           <section className="flex flex-col gap-3">
-            <SectionHeading title="Output" />
+            <SectionHeading title="Output" onReset={resetOutput} />
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-small">Format</label>
@@ -276,7 +324,7 @@ export function SettingsApp() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <SectionHeading title="Engine" />
+            <SectionHeading title="Engine" onReset={resetEngine} />
             <div className="flex flex-col gap-1">
               <label className="text-small inline-flex items-center gap-1.5">
                 <FieldLabel
@@ -357,6 +405,7 @@ export function SettingsApp() {
             <SectionHeading
               title="Advanced"
               hint="Alpha matting refines hair and translucent edges."
+              onReset={resetAdvanced}
             />
             <div className="flex items-center justify-between gap-3 rounded-medium border border-default-200 bg-content1 px-3 py-2.5">
               <span className="inline-flex items-center gap-1.5 text-small">
@@ -463,7 +512,7 @@ export function SettingsApp() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <SectionHeading title="App" hint="Application updates and behavior." />
+            <SectionHeading title="App" hint="Application updates and behavior." onReset={resetApp} />
             <div className="flex items-center justify-between gap-3 rounded-medium border border-default-200 bg-content1 px-3 py-2.5">
               <div className="flex flex-col">
                 <span className="text-small">Automatic updates</span>

@@ -66,16 +66,22 @@ async function preprocess(input: Buffer, family: ModelFamily): Promise<Float32Ar
   const { size, mean, std } = MODEL_CONFIGS[family];
   const pixels = await sharp(input)
     .rotate()
-    .resize(size, size, { fit: "fill" })
+    .resize(size, size, { fit: "fill", kernel: "lanczos3" })
     .removeAlpha()
     .raw()
     .toBuffer();
 
+  let maxVal = 0;
+  for (let i = 0; i < pixels.length; i++) {
+    if (pixels[i] > maxVal) maxVal = pixels[i];
+  }
+  const norm = Math.max(maxVal, 1);
+
   const float = new Float32Array(3 * size * size);
   for (let i = 0; i < size * size; i++) {
-    float[i] = (pixels[i * 3] / 255 - mean[0]) / std[0];
-    float[size * size + i] = (pixels[i * 3 + 1] / 255 - mean[1]) / std[1];
-    float[2 * size * size + i] = (pixels[i * 3 + 2] / 255 - mean[2]) / std[2];
+    float[i] = (pixels[i * 3] / norm - mean[0]) / std[0];
+    float[size * size + i] = (pixels[i * 3 + 1] / norm - mean[1]) / std[1];
+    float[2 * size * size + i] = (pixels[i * 3 + 2] / norm - mean[2]) / std[2];
   }
   return float;
 }
@@ -165,7 +171,7 @@ async function tryModelMask(input: Buffer, options: RemoveOptions): Promise<Mask
     const rawMask = postprocessMask(outputData, family, size);
 
     const maskResized = await sharp(Buffer.from(rawMask), { raw: { width: size, height: size, channels: 1 } })
-      .resize(origW, origH, { fit: "fill" })
+      .resize(origW, origH, { fit: "fill", kernel: "lanczos3" })
       .raw()
       .toBuffer();
 

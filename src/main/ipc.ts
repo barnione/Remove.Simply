@@ -2,7 +2,7 @@ import { BrowserWindow, ipcMain } from "electron";
 import type { AppSettings, RemoveOptions } from "../types";
 import { cancelDownload, deleteModel, downloadModel, listModels } from "./engine/models";
 import { removeBackground } from "./engine/remover";
-import { getSettings, setSettings } from "./store";
+import { DEFAULT_SETTINGS, getSettings, setSettings } from "./store";
 import {
   closeAboutWindow,
   openAboutWindow,
@@ -22,6 +22,7 @@ export function registerIpcHandlers(): void {
   });
 
   ipcMain.handle("settings:get", () => getSettings());
+  ipcMain.handle("settings:defaults", () => DEFAULT_SETTINGS);
   ipcMain.handle("settings:set", (_event, patch: Partial<AppSettings>) => {
     const next = setSettings(patch);
     broadcastSettings(next);

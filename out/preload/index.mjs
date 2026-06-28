@@ -10,6 +10,9 @@ const api = {
     set(patch) {
       return ipcRenderer.invoke("settings:set", patch);
     },
+    defaults() {
+      return ipcRenderer.invoke("settings:defaults");
+    },
     onChanged(callback) {
       const listener = (_event, settings) => callback(settings);
       ipcRenderer.on("settings:changed", listener);
