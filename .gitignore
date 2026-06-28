@@ -4,3 +4,10 @@ dist/
 release/
 .vite/
 .DS_Store
+
+# AI tooling / generated docs
+CLAUDE.md
+.impeccable/
+PRODUCT.md
+plan.md
+docs/PLAN.md
