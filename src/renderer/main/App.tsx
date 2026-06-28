@@ -1,17 +1,24 @@
 import {
   Button,
   Card,
-  CardBody,
+  CardContent,
   Chip,
-  Navbar,
-  NavbarContent,
-  NavbarItem,
-  Progress,
+  ColorArea,
+  ColorField,
+  ColorPicker,
+  ColorSlider,
+  ColorSwatch,
+  ColorSwatchPicker,
+  Label,
+  ListBox,
+  ProgressBar,
   Select,
-  SelectItem,
   Switch,
+  toast,
   Tooltip,
-  addToast
+  TooltipContent,
+  TooltipTrigger,
+  parseColor
 } from "@heroui/react";
 import {
   Download,
@@ -20,11 +27,11 @@ import {
   ImagePlus,
   RefreshCcw,
   Settings as SettingsIcon,
+  Shuffle,
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppSettings, ModelInfo, RemoveOptions } from "../../types";
-import { ChromaSwatch } from "./ChromaSwatch";
 
 type QueueStatus = "queued" | "processing" | "done" | "error";
 
@@ -40,9 +47,19 @@ interface QueueItem {
 
 const formats = ["png", "webp", "jpg"] as const;
 
-const presetColors = ["#ffffff", "#000000", "#808080", "#3b82f6", "#ef4444"];
+const presetColors = [
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#22c55e",
+  "#06b6d4",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#f43f5e"
+];
 
-function BackgroundColorSwatches({
+function BackgroundColorPicker({
   value,
   disabled,
   onChange
@@ -51,41 +68,81 @@ function BackgroundColorSwatches({
   disabled: boolean;
   onChange: (color: string) => void;
 }) {
-  const current = value.toLowerCase();
-  const isPreset = presetColors.includes(current);
+  const [color, setColor] = useState(() => parseColor(value));
+
+  useEffect(() => {
+    setColor(parseColor(value));
+  }, [value]);
+
+  const handleChange = (next: typeof color) => {
+    setColor(next);
+    onChange(next.toString("hex"));
+  };
+
+  const shuffleColor = () => {
+    const randomHue = Math.floor(Math.random() * 360);
+    const randomSaturation = 50 + Math.floor(Math.random() * 50);
+    const randomLightness = 40 + Math.floor(Math.random() * 30);
+    handleChange(
+      parseColor(`hsl(${randomHue}, ${randomSaturation}%, ${randomLightness}%)`)
+    );
+  };
+
   return (
-    <div
-      className={`flex items-center gap-1.5 transition-opacity ${
-        disabled ? "opacity-40" : ""
-      }`}
-      aria-label="Background color"
-    >
-      {presetColors.map((color) => {
-        const active = current === color;
-        return (
-          <button
-            key={color}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(color)}
-            title={color.toUpperCase()}
-            aria-label={`Background ${color}`}
-            className={`h-6 w-6 rounded-full border-2 transition disabled:cursor-not-allowed ${
-              active
-                ? "border-primary"
-                : "border-default-200 hover:border-default-300"
-            }`}
-            style={{ backgroundColor: color }}
-          />
-        );
-      })}
-      <ChromaSwatch
-        value={value}
-        disabled={disabled}
-        active={!isPreset}
-        showGradient={isPreset}
-        onChange={onChange}
-      />
+    <div className={`transition-opacity ${disabled ? "opacity-40" : ""}`}>
+      <ColorPicker value={color} onChange={handleChange}>
+        <ColorPicker.Trigger className="flex h-8 w-8 items-center justify-center rounded-md p-0">
+          <ColorSwatch className="h-6 w-6 rounded-md" />
+          <Label className="sr-only">Background color</Label>
+        </ColorPicker.Trigger>
+        <ColorPicker.Popover className="gap-2">
+          <ColorSwatchPicker className="justify-center pt-2" size="xs">
+            {presetColors.map((preset) => (
+              <ColorSwatchPicker.Item key={preset} color={preset}>
+                <ColorSwatchPicker.Swatch />
+              </ColorSwatchPicker.Item>
+            ))}
+          </ColorSwatchPicker>
+          <ColorArea
+            aria-label="Color area"
+            className="max-w-full"
+            colorSpace="hsb"
+            xChannel="saturation"
+            yChannel="brightness"
+          >
+            <ColorArea.Thumb />
+          </ColorArea>
+          <div className="flex items-center gap-2 px-1">
+            <ColorSlider
+              aria-label="Hue slider"
+              channel="hue"
+              className="flex-1"
+              colorSpace="hsb"
+            >
+              <ColorSlider.Track>
+                <ColorSlider.Thumb />
+              </ColorSlider.Track>
+            </ColorSlider>
+            <Button
+              isIconOnly
+              aria-label="Shuffle color"
+              size="sm"
+              variant="tertiary"
+              onPress={shuffleColor}
+            >
+              <Shuffle size={16} />
+            </Button>
+          </div>
+          <ColorField aria-label="Color field">
+            <ColorField.Group variant="secondary">
+              <ColorField.Prefix>
+                <ColorSwatch size="xs" />
+              </ColorField.Prefix>
+              <ColorField.Input />
+            </ColorField.Group>
+          </ColorField>
+        </ColorPicker.Popover>
+      </ColorPicker>
     </div>
   );
 }
@@ -96,7 +153,7 @@ const statusColor = (status: QueueStatus) =>
     : status === "error"
     ? "danger"
     : status === "processing"
-    ? "primary"
+    ? "accent"
     : "default";
 
 const CHECKER_BG =
@@ -123,57 +180,40 @@ export function App() {
     });
     const offUpdate = window.api.update.onAvailable((info) => {
       if (info.downloaded) {
-        addToast({
-          title: "Update ready",
+        toast.success("Update ready", {
           description: `Remove.Simply ${info.version} is downloaded.`,
-          color: "success",
           timeout: 0,
-          endContent: (
-            <Button
-              size="sm"
-              color="primary"
-              onPress={() => void window.api.update.install()}
-            >
-              Restart
-            </Button>
-          )
+          actionProps: {
+            children: "Restart",
+            onPress: () => void window.api.update.install()
+          }
         });
       } else if (info.autoUpdatesEnabled) {
-        addToast({
-          title: "Update available",
+        toast("Update available", {
           description: `Remove.Simply ${info.version} will download automatically.`,
-          color: "primary"
+          variant: "accent"
         });
       } else {
-        addToast({
-          title: "Update available",
+        toast("Update available", {
           description: `Remove.Simply ${info.version} is available.`,
-          color: "primary",
           timeout: 0,
-          endContent: (
-            <Button
-              size="sm"
-              color="primary"
-              onPress={() => void window.api.update.download()}
-            >
-              Update
-            </Button>
-          )
+          variant: "accent",
+          actionProps: {
+            children: "Update",
+            onPress: () => void window.api.update.download()
+          }
         });
       }
     });
     const offUpdateStatus = window.api.update.onStatus((status) => {
       if (status.status === "downloading") {
-        addToast({
-          title: "Downloading update",
+        toast("Downloading update", {
           description: `Remove.Simply ${status.version ?? ""} is downloading...`,
-          color: "primary"
+          variant: "accent"
         });
       } else if (status.status === "error") {
-        addToast({
-          title: "Update failed",
-          description: status.message || "Could not download the update.",
-          color: "danger"
+        toast.danger("Update failed", {
+          description: status.message || "Could not download the update."
         });
       }
     });
@@ -193,18 +233,14 @@ export function App() {
     async (file: File) => {
       if (!settings) return;
       if (!file.type.startsWith("image/")) {
-        addToast({
-          title: "Unsupported file",
-          description: `${file.name} is not an image.`,
-          color: "danger"
+        toast.danger("Unsupported file", {
+          description: `${file.name} is not an image.`
         });
         return;
       }
       if (file.size > settings.maxUploadSizeMB * 1024 * 1024) {
-        addToast({
-          title: "File too large",
-          description: `${file.name} is above ${settings.maxUploadSizeMB} MB.`,
-          color: "warning"
+        toast.warning("File too large", {
+          description: `${file.name} is above ${settings.maxUploadSizeMB} MB.`
         });
         return;
       }
@@ -350,41 +386,29 @@ export function App() {
 
   return (
     <div className="relative flex h-screen select-none flex-col bg-background text-foreground">
-      <Navbar
-        maxWidth="full"
-        height="3rem"
-        classNames={{ base: "app-drag", wrapper: "pl-20 pr-4" }}
-      >
-        <NavbarContent justify="end">
-          <NavbarItem>
-            <Button
-              size="sm"
-              variant="flat"
-              startContent={<FolderCog size={15} />}
-              onPress={() => void window.api.windows.openModels()}
-            >
-              Models
-            </Button>
-          </NavbarItem>
-          <NavbarItem>
-            <Button
-              size="sm"
-              variant="flat"
-              startContent={<SettingsIcon size={15} />}
-              onPress={() => void window.api.windows.openSettings()}
-            >
-              Settings
-            </Button>
-          </NavbarItem>
-        </NavbarContent>
-      </Navbar>
+      <nav className="app-drag flex h-12 items-center justify-end gap-2 pl-20 pr-4">
+        <Button
+          size="sm"
+          variant="secondary"
+          onPress={() => void window.api.windows.openModels()}
+        >
+          <FolderCog size={15} className="mr-1.5" />
+          Models
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onPress={() => void window.api.windows.openSettings()}
+        >
+          <SettingsIcon size={15} className="mr-1.5" />
+          Settings
+        </Button>
+      </nav>
 
       <main className="flex-1 overflow-auto">
         <div className="mx-auto flex max-w-4xl flex-col gap-4 p-6">
           <Card
-            shadow="none"
-            isPressable
-            onPress={() => inputRef.current?.click()}
+            onClick={() => inputRef.current?.click()}
             onDragOver={(event) => {
               event.preventDefault();
               setDragging(true);
@@ -401,14 +425,14 @@ export function App() {
                 : "border-default-200 hover:border-default-300"
             }`}
           >
-            <CardBody className="items-center justify-center gap-2 py-10 text-center">
-              <ImagePlus size={28} className="text-default-400" />
+            <CardContent className="items-center justify-center gap-2 py-10 text-center">
+              <ImagePlus size={28} className="text-muted" />
               <h2 className="text-medium font-medium">Drop images here</h2>
-              <p className="max-w-xs text-small text-default-500">
+              <p className="max-w-xs text-small text-muted">
                 PNG, JPG, or WebP, or paste from the clipboard.
               </p>
               {!readyModels.length && (
-                <Chip size="sm" color="warning" variant="flat" className="mt-1">
+                <Chip size="sm" color="warning" variant="soft" className="mt-1">
                   Open Models to download one
                 </Chip>
               )}
@@ -420,11 +444,11 @@ export function App() {
                 hidden
                 onChange={(e) => e.target.files && addFiles(e.target.files)}
               />
-            </CardBody>
+            </CardContent>
           </Card>
 
-          <Card shadow="sm">
-            <CardBody className="gap-4 p-4">
+          <Card variant="secondary">
+            <CardContent className="gap-4 p-4">
               <div
                 className="grid min-h-[320px] place-items-center overflow-hidden rounded-medium"
                 style={
@@ -447,11 +471,11 @@ export function App() {
                   />
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-center">
-                    <Eraser size={28} className="text-default-400" />
+                    <Eraser size={28} className="text-muted" />
                     <h3 className="text-medium font-medium">
                       Ready for a clean cutout
                     </h3>
-                    <p className="text-small text-default-500">
+                    <p className="text-small text-muted">
                       Your latest result previews here.
                     </p>
                   </div>
@@ -463,97 +487,114 @@ export function App() {
                   <div className="flex items-center gap-1.5">
                     <Select
                       aria-label="Model"
-                      size="sm"
-                      variant="flat"
-                      className="w-44"
-                      selectedKeys={[settings.defaultModel]}
-                      onChange={(event) =>
-                        updateSettings({ defaultModel: event.target.value })
+                      selectedKey={settings.defaultModel}
+                      onSelectionChange={(key) =>
+                        updateSettings({ defaultModel: String(key) })
                       }
                     >
-                      {readyModels.map((m) => (
-                        <SelectItem key={m.id}>{m.label}</SelectItem>
-                      ))}
+                      <Select.Trigger className="w-44">
+                        <Select.Value />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          {readyModels.map((m) => (
+                            <ListBox.Item key={m.id} id={m.id}>
+                              {m.label}
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
                     </Select>
-                    <Tooltip
-                      content="Re-process with current settings"
-                      placement="top"
-                      delay={200}
-                      size="sm"
-                    >
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="flat"
-                        isDisabled={!hasResult}
-                        onPress={rerunSelected}
-                        aria-label="Re-run with current settings"
-                      >
-                        <RefreshCcw size={14} />
-                      </Button>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="secondary"
+                          isDisabled={!hasResult}
+                          onPress={rerunSelected}
+                          aria-label="Re-run with current settings"
+                        >
+                          <RefreshCcw size={14} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Re-process with current settings
+                      </TooltipContent>
                     </Tooltip>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                  <Select
-                    aria-label="Output format"
-                    size="sm"
-                    variant="flat"
-                    className="w-32"
-                    selectedKeys={[settings.outputFormat]}
-                    onChange={(event) =>
-                      updateSettings({
-                        outputFormat: event.target.value as AppSettings["outputFormat"]
-                      })
-                    }
-                  >
-                    {formats.map((format) => (
-                      <SelectItem key={format}>{format.toUpperCase()}</SelectItem>
-                    ))}
-                  </Select>
-                  <BackgroundColorSwatches
-                    value={settings.backgroundColor}
-                    disabled={settings.transparentBackground}
-                    onChange={(backgroundColor) =>
-                      updateSettings({ backgroundColor })
-                    }
-                  />
-                  <Switch
-                    size="sm"
-                    isSelected={settings.transparentBackground}
-                    onValueChange={(transparentBackground) =>
-                      updateSettings({ transparentBackground })
-                    }
-                  >
-                    <span className="text-small">Transparent</span>
-                  </Switch>
-                  <Button
-                    size="sm"
-                    color="primary"
-                    startContent={<Download size={15} />}
-                    isDisabled={!hasResult}
-                    onPress={saveSelected}
-                  >
-                    Download
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      aria-label="Output format"
+                      selectedKey={settings.outputFormat}
+                      onSelectionChange={(key) =>
+                        updateSettings({
+                          outputFormat: key as AppSettings["outputFormat"]
+                        })
+                      }
+                    >
+                      <Select.Trigger className="w-32 h-8 px-2">
+                        <Select.Value />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          {formats.map((format) => (
+                            <ListBox.Item key={format} id={format}>
+                              {format.toUpperCase()}
+                            </ListBox.Item>
+                          ))}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                    <BackgroundColorPicker
+                      value={settings.backgroundColor}
+                      disabled={settings.transparentBackground}
+                      onChange={(backgroundColor) =>
+                        updateSettings({ backgroundColor })
+                      }
+                    />
+                    <div className="flex h-8 items-center">
+                      <Switch
+                        isSelected={settings.transparentBackground}
+                        onChange={(transparentBackground) =>
+                          updateSettings({ transparentBackground })
+                        }
+                      >
+                        <Switch.Content>
+                          <Switch.Control>
+                            <Switch.Thumb />
+                          </Switch.Control>
+                          <span className="text-small">Transparent</span>
+                        </Switch.Content>
+                      </Switch>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      isDisabled={!hasResult}
+                      onPress={saveSelected}
+                      className="h-8 px-3"
+                    >
+                      <Download size={15} className="mr-1.5" />
+                      Download
+                    </Button>
                   </div>
                 </div>
               )}
-            </CardBody>
+            </CardContent>
           </Card>
 
           {items.length > 0 && (
             <section className="flex flex-col gap-2">
               <div className="flex items-center gap-2 px-1">
-                <h3 className="text-small font-medium text-default-600">Queue</h3>
-                <Chip size="sm" variant="flat">
-                  {items.length}
-                </Chip>
+                <h3 className="text-small font-medium text-muted">Queue</h3>
+                <Chip size="sm" variant="soft">{items.length}</Chip>
               </div>
               <div className="flex flex-col gap-1.5">
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className="group relative flex items-center gap-3 overflow-hidden rounded-medium border border-default-100 bg-content1 px-3 py-2"
+                    className="group relative flex items-center gap-3 overflow-hidden rounded-medium border border-default-200 bg-content1 px-3 py-2"
                   >
                     <button
                       type="button"
@@ -572,17 +613,21 @@ export function App() {
                       {item.file.name}
                     </span>
                     {item.status === "processing" && (
-                      <Progress
+                      <ProgressBar
                         aria-label="processing"
                         value={item.progress}
                         size="sm"
                         className="w-32"
-                      />
+                      >
+                        <ProgressBar.Track>
+                          <ProgressBar.Fill />
+                        </ProgressBar.Track>
+                      </ProgressBar>
                     )}
                     <Chip
                       size="sm"
                       color={statusColor(item.status)}
-                      variant="flat"
+                      variant="soft"
                     >
                       {item.status}
                     </Chip>

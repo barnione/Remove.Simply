@@ -48,13 +48,37 @@ export default defineConfig({
   renderer: {
     plugins: [react()],
     define: appDefine,
+    resolve: {
+      alias: {
+        "lucide-react": "lucide-react/dist/esm/lucide-react.js"
+      }
+    },
     build: {
+      sourcemap: false,
       rollupOptions: {
         input: {
           main: resolve(__dirname, "src/renderer/main/index.html"),
           settings: resolve(__dirname, "src/renderer/settings/index.html"),
           models: resolve(__dirname, "src/renderer/models/index.html"),
           about: resolve(__dirname, "src/renderer/about/index.html")
+        },
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              if (id.includes("react-aria") || id.includes("react-stately") || id.includes("@internationalized")) {
+                return "react-aria";
+              }
+              if (id.includes("@heroui")) {
+                return "heroui";
+              }
+              if (id.includes("lucide-react")) {
+                return "lucide";
+              }
+              if (id.includes("react") || id.includes("scheduler")) {
+                return "react-vendor";
+              }
+            }
+          }
         }
       }
     }

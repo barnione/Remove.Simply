@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
-import { autoUpdater, type UpdateInfo } from "electron-updater";
+import electronUpdater, { type UpdateInfo } from "electron-updater";
+const { autoUpdater } = electronUpdater;
 import { getMainWindow } from "./windows";
 import { getSettings } from "./store";
 

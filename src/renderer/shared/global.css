@@ -1,6 +1,56 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "@heroui/styles";
+
+@utility text-tiny {
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+}
+
+@utility text-small {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+@utility text-medium {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+@theme {
+  /* Backward-compatible semantic colors used throughout the app */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-content1: var(--surface);
+  --color-content1-foreground: var(--surface-foreground);
+  --color-content2: var(--surface-secondary);
+  --color-content2-foreground: var(--surface-secondary-foreground);
+  --color-content3: var(--surface-tertiary);
+  --color-content3-foreground: var(--surface-tertiary-foreground);
+
+  --color-default-50: var(--background);
+  --color-default-100: var(--background-secondary);
+  --color-default-200: var(--border);
+  --color-default-300: var(--border-secondary);
+  --color-default-400: var(--muted);
+  --color-default-500: var(--foreground);
+  --color-default-foreground: var(--foreground);
+
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-foreground);
+  --color-secondary: var(--default);
+  --color-secondary-foreground: var(--default-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-muted: var(--muted);
+
+  --radius-medium: var(--radius);
+  --radius-large: calc(var(--radius) * 1.5);
+}
 
 html,
 body,
@@ -29,6 +79,18 @@ body {
 
 .no-drag {
   -webkit-app-region: no-drag;
+}
+
+/* Backward-compatible HeroUI v2 CSS variables for custom styles */
+:root {
+  --heroui-default-50: var(--background);
+  --heroui-default-100: var(--background-secondary);
+  --heroui-default-200: var(--border);
+  --heroui-default-300: var(--border-secondary);
+  --heroui-primary: var(--accent);
+  --heroui-content2: var(--surface-secondary);
+  --heroui-content3: var(--surface-tertiary);
+  --heroui-foreground: var(--foreground);
 }
 
 ::-webkit-scrollbar {
@@ -61,81 +123,10 @@ body {
   scrollbar-color: hsl(var(--heroui-default-200)) transparent;
 }
 
-.chroma-swatch {
-  position: relative;
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  vertical-align: middle;
+/* Darker Switch off-state track */
+.switch {
+  --switch-control-bg: color-mix(in oklab, var(--foreground) 25%, var(--background));
+  --switch-control-bg-hover: color-mix(in oklab, var(--foreground) 32%, var(--background));
+  --switch-control-bg-pressed: var(--switch-control-bg-hover);
 }
 
-.chroma-swatch label[_chroma="input"] {
-  display: block;
-  box-sizing: border-box;
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  padding: 0;
-  border-radius: 9999px !important;
-  border: 2px solid hsl(var(--heroui-default-200)) !important;
-  float: none !important;
-  cursor: pointer;
-  background-clip: padding-box;
-  transition: border-color 0.15s, transform 0.15s;
-}
-
-.chroma-swatch:hover label[_chroma="input"] {
-  border-color: hsl(var(--heroui-default-300));
-}
-
-.chroma-swatch.chroma-swatch--gradient label[_chroma="input"] {
-  background-color: transparent !important;
-  background-image: conic-gradient(
-    from 180deg,
-    #ef4444,
-    #f59e0b,
-    #84cc16,
-    #22c55e,
-    #06b6d4,
-    #3b82f6,
-    #a855f7,
-    #ec4899,
-    #ef4444
-  );
-}
-
-.chroma-swatch.chroma-swatch--active label[_chroma="input"] {
-  border-color: hsl(var(--heroui-primary));
-}
-
-.chroma-swatch input[_chroma="input"] {
-  position: absolute !important;
-  top: 0;
-  left: 0;
-  width: 24px !important;
-  height: 24px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  color: transparent !important;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.chroma-swatch [_chroma="picker"] {
-  --chroma-theme-background: hsl(var(--heroui-content2));
-  --chroma-theme-background-hover: hsl(var(--heroui-content3));
-  --chroma-theme-background-focus: hsl(var(--heroui-content3));
-  --chroma-theme-border-color: hsl(var(--heroui-default-200));
-  --chroma-theme-border-radius: 10px;
-  --chroma-theme-border-width: 1px;
-  --chroma-theme-input-color: hsl(var(--heroui-foreground));
-  top: auto;
-  bottom: 100%;
-  right: 0;
-  left: auto;
-  margin: 0 0 8px 0;
-  z-index: 60;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
-}

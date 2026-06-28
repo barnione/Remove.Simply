@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, statSync, createWriteStream, rmSync } from "node
 import { join } from "node:path";
 import sharp from "sharp";
 import Store from "electron-store";
-import { autoUpdater } from "electron-updater";
+import electronUpdater from "electron-updater";
 import __cjs_mod__ from "node:module";
 const __filename = import.meta.filename;
 const __dirname = import.meta.dirname;
@@ -604,6 +604,7 @@ function registerIpcHandlers() {
   ipcMain.handle("window:openAbout", () => openAboutWindow());
   ipcMain.handle("window:closeAbout", () => closeAboutWindow());
 }
+const { autoUpdater } = electronUpdater;
 let lastUpdateInfo = null;
 let isDownloading = false;
 function send(channel, payload) {

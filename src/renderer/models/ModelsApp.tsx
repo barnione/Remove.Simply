@@ -1,5 +1,23 @@
-import { Button, Chip, Input, Progress, Tooltip } from "@heroui/react";
-import { Check, DownloadCloud, Search, Star, Trash2, X } from "lucide-react";
+import {
+  Button,
+  Chip,
+  InputGroup,
+  InputGroupInput,
+  InputGroupPrefix,
+  InputGroupSuffix,
+  ProgressBar,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from "@heroui/react";
+import {
+  Check,
+  DownloadCloud,
+  Search,
+  Star,
+  Trash2,
+  X
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { AppSettings, DownloadProgress, ModelInfo } from "../../types";
 
@@ -43,164 +61,175 @@ export function ModelsApp() {
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
-      <header className="app-drag flex h-10 shrink-0 items-center border-b border-default-100 pl-20 pr-4">
+      <header className="app-drag flex h-10 shrink-0 items-center border-b border-default-200 pl-20 pr-4">
         <h1 className="text-small font-semibold">Models</h1>
       </header>
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-xl flex-col gap-5 p-6">
-          <p className="text-small text-default-500">
+          <p className="text-small text-muted">
             Download segmentation models and choose a default.
           </p>
 
-          <Input
-            size="sm"
-            placeholder="Search models..."
-            startContent={<Search size={14} className="text-default-400" />}
-            value={search}
-            onValueChange={setSearch}
-            isClearable
-            onClear={() => setSearch("")}
-            classNames={{ inputWrapper: "no-drag" }}
-          />
+          <InputGroup className="no-drag h-8" variant="secondary">
+            <InputGroupPrefix>
+              <Search size={14} className="text-muted" />
+            </InputGroupPrefix>
+            <InputGroupInput
+              className="text-small"
+              placeholder="Search models..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            {search && (
+              <InputGroupSuffix>
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  className="text-muted hover:text-foreground"
+                  onClick={() => setSearch("")}
+                >
+                  <X size={14} />
+                </button>
+              </InputGroupSuffix>
+            )}
+          </InputGroup>
 
           <div className="flex flex-col gap-2">
-          {filtered.map((model) => {
-            const modelProgress = progress[model.id];
-            const isDownloading =
-              model.status === "downloading" ||
-              modelProgress?.status === "downloading";
-            const isDefault = settings?.defaultModel === model.id;
-            return (
-              <div
-                key={model.id}
-                className="flex flex-col gap-3 rounded-medium border border-default-100 bg-content1 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h2 className="truncate text-medium font-medium">
-                        {model.label}
-                      </h2>
-                      {isDefault && (
-                        <Chip
+            {filtered.map((model) => {
+              const modelProgress = progress[model.id];
+              const isDownloading =
+                model.status === "downloading" ||
+                modelProgress?.status === "downloading";
+              const isDefault = settings?.defaultModel === model.id;
+              return (
+                <div
+                  key={model.id}
+                  className="flex flex-col gap-3 rounded-medium border border-default-200 bg-content1 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h2 className="truncate text-medium font-medium">
+                          {model.label}
+                        </h2>
+                        {isDefault && (
+                          <Chip size="sm" color="accent" variant="soft">
+                            <Check size={12} className="mr-1" />
+                            Default
+                          </Chip>
+                        )}
+                      </div>
+                      <p className="truncate text-tiny text-muted">
+                        {model.family} · ~{model.approxSizeMB} MB · {model.speedNote}
+                      </p>
+                    </div>
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      color={
+                        model.cached
+                          ? "success"
+                          : isDownloading
+                          ? "accent"
+                          : "default"
+                      }
+                    >
+                      {isDownloading
+                        ? "Downloading"
+                        : model.cached
+                        ? "Ready"
+                        : "Not downloaded"}
+                    </Chip>
+                  </div>
+
+                  {isDownloading && (
+                    <ProgressBar
+                      aria-label={`${model.label} download progress`}
+                      value={modelProgress?.progress ?? 10}
+                      size="sm"
+                    >
+                      <ProgressBar.Track>
+                        <ProgressBar.Fill />
+                      </ProgressBar.Track>
+                    </ProgressBar>
+                  )}
+
+                  {modelProgress?.status === "error" && (
+                    <p className="text-tiny text-danger">
+                      {modelProgress.message ?? "Download failed"}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-tiny text-muted">
+                      {model.cached
+                        ? `${model.sizeOnDiskMB} MB on disk`
+                        : "Not cached locally"}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {model.cached && (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant={isDefault ? "primary" : "secondary"}
+                              isDisabled={isDefault}
+                              onPress={() => setDefault(model.id)}
+                              aria-label="Set as default model"
+                            >
+                              <Star
+                                size={15}
+                                fill={isDefault ? "currentColor" : "none"}
+                              />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {isDefault ? "Already the default" : "Set as default"}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                      {isDownloading ? (
+                        <Button
                           size="sm"
-                          color="primary"
-                          variant="flat"
-                          startContent={<Check size={12} />}
+                          variant="secondary"
+                          onPress={() =>
+                            void window.api.models.cancel(model.id).then(setModels)
+                          }
                         >
-                          Default
-                        </Chip>
+                          <X size={14} className="mr-1.5" />
+                          Cancel
+                        </Button>
+                      ) : model.cached ? (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onPress={() =>
+                            void window.api.models.delete(model.id).then(setModels)
+                          }
+                        >
+                          <Trash2 size={14} className="mr-1.5" />
+                          Delete
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onPress={() =>
+                            void window.api.models
+                              .download(model.id)
+                              .then(setModels)
+                          }
+                        >
+                          <DownloadCloud size={14} className="mr-1.5" />
+                          Download
+                        </Button>
                       )}
                     </div>
-                    <p className="truncate text-tiny text-default-500">
-                      {model.family} · ~{model.approxSizeMB} MB · {model.speedNote}
-                    </p>
-                  </div>
-                  <Chip
-                    size="sm"
-                    variant="flat"
-                    color={
-                      model.cached
-                        ? "success"
-                        : isDownloading
-                        ? "primary"
-                        : "default"
-                    }
-                  >
-                    {isDownloading
-                      ? "Downloading"
-                      : model.cached
-                      ? "Ready"
-                      : "Not downloaded"}
-                  </Chip>
-                </div>
-
-                {isDownloading && (
-                  <Progress
-                    aria-label={`${model.label} download progress`}
-                    value={modelProgress?.progress ?? 10}
-                    size="sm"
-                  />
-                )}
-
-                {modelProgress?.status === "error" && (
-                  <p className="text-tiny text-danger">
-                    {modelProgress.message ?? "Download failed"}
-                  </p>
-                )}
-
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-tiny text-default-500">
-                    {model.cached
-                      ? `${model.sizeOnDiskMB} MB on disk`
-                      : "Not cached locally"}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {model.cached && (
-                      <Tooltip
-                        content={isDefault ? "Already the default" : "Set as default"}
-                        size="sm"
-                      >
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          color={isDefault ? "primary" : "default"}
-                          isDisabled={isDefault}
-                          onPress={() => setDefault(model.id)}
-                          aria-label="Set as default model"
-                        >
-                          <Star
-                            size={15}
-                            fill={isDefault ? "currentColor" : "none"}
-                          />
-                        </Button>
-                      </Tooltip>
-                    )}
-                    {isDownloading ? (
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="warning"
-                        startContent={<X size={14} />}
-                        onPress={() =>
-                          void window.api.models.cancel(model.id).then(setModels)
-                        }
-                      >
-                        Cancel
-                      </Button>
-                    ) : model.cached ? (
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="danger"
-                        startContent={<Trash2 size={14} />}
-                        onPress={() =>
-                          void window.api.models.delete(model.id).then(setModels)
-                        }
-                      >
-                        Delete
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        color="primary"
-                        variant="flat"
-                        startContent={<DownloadCloud size={14} />}
-                        onPress={() =>
-                          void window.api.models
-                            .download(model.id)
-                            .then(setModels)
-                        }
-                      >
-                        Download
-                      </Button>
-                    )}
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
           </div>
         </div>
       </main>
