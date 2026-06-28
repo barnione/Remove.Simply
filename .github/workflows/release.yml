@@ -115,15 +115,30 @@ jobs:
               ;;
           esac
 
-      - name: Upload artifacts to release
+      - name: Upload Linux artifact to release
+        if: runner.os == 'Linux'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.bump-version.outputs.tag }}
+          files: release/Remove.Simply-*-linux-x86_64.AppImage
+          fail_on_unmatched_files: true
+
+      - name: Upload macOS artifacts to release
+        if: runner.os == 'macOS'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.bump-version.outputs.tag }}
           files: |
-            release/Remove.Simply-*-linux-x86_64.AppImage
             release/Remove.Simply-*-mac-arm64.dmg
             release/Remove.Simply-*-mac-x64.dmg
-            release/Remove.Simply-*-win-x64.exe
+          fail_on_unmatched_files: true
+
+      - name: Upload Windows artifact to release
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.bump-version.outputs.tag }}
+          files: release/Remove.Simply-*-win-x64.exe
           fail_on_unmatched_files: true
 
   publish-release:
