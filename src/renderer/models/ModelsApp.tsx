@@ -1,12 +1,13 @@
-import { Button, Chip, Progress, Tooltip } from "@heroui/react";
-import { Check, DownloadCloud, Star, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Button, Chip, Input, Progress, Tooltip } from "@heroui/react";
+import { Check, DownloadCloud, Search, Star, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { AppSettings, DownloadProgress, ModelInfo } from "../../types";
 
 export function ModelsApp() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [progress, setProgress] = useState<Record<string, DownloadProgress>>({});
+  const [search, setSearch] = useState("");
 
   const refresh = () => void window.api.models.list().then(setModels);
 
@@ -28,6 +29,18 @@ export function ModelsApp() {
     void window.api.settings.set({ defaultModel }).then(setSettings);
   };
 
+  const filtered = useMemo(() => {
+    if (!search.trim()) return models;
+    const q = search.toLowerCase();
+    return models.filter(
+      (m) =>
+        m.label.toLowerCase().includes(q) ||
+        m.family.toLowerCase().includes(q) ||
+        m.id.toLowerCase().includes(q) ||
+        m.speedNote.toLowerCase().includes(q)
+    );
+  }, [models, search]);
+
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       <header className="app-drag flex h-10 shrink-0 items-center border-b border-default-100 pl-20 pr-4">
@@ -39,8 +52,19 @@ export function ModelsApp() {
             Download segmentation models and choose a default.
           </p>
 
+          <Input
+            size="sm"
+            placeholder="Search models..."
+            startContent={<Search size={14} className="text-default-400" />}
+            value={search}
+            onValueChange={setSearch}
+            isClearable
+            onClear={() => setSearch("")}
+            classNames={{ inputWrapper: "no-drag" }}
+          />
+
           <div className="flex flex-col gap-2">
-          {models.map((model) => {
+          {filtered.map((model) => {
             const modelProgress = progress[model.id];
             const isDownloading =
               model.status === "downloading" ||
@@ -133,7 +157,19 @@ export function ModelsApp() {
                         </Button>
                       </Tooltip>
                     )}
-                    {model.cached ? (
+                    {isDownloading ? (
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        color="warning"
+                        startContent={<X size={14} />}
+                        onPress={() =>
+                          void window.api.models.cancel(model.id).then(setModels)
+                        }
+                      >
+                        Cancel
+                      </Button>
+                    ) : model.cached ? (
                       <Button
                         size="sm"
                         variant="flat"
@@ -151,7 +187,6 @@ export function ModelsApp() {
                         color="primary"
                         variant="flat"
                         startContent={<DownloadCloud size={14} />}
-                        isLoading={isDownloading}
                         onPress={() =>
                           void window.api.models
                             .download(model.id)

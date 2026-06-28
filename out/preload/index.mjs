@@ -23,6 +23,9 @@ const api = {
     download(modelId) {
       return ipcRenderer.invoke("models:download", modelId);
     },
+    cancel(modelId) {
+      return ipcRenderer.invoke("models:cancel", modelId);
+    },
     delete(modelId) {
       return ipcRenderer.invoke("models:delete", modelId);
     },

@@ -110,7 +110,9 @@ export function App() {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [items, setItems] = useState<QueueItem[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [windowDragging, setWindowDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
   useEffect(() => {
     void window.api.settings.get().then(setSettings);
@@ -236,6 +238,41 @@ export function App() {
     return () => window.removeEventListener("paste", onPaste);
   }, [addFiles]);
 
+  useEffect(() => {
+    const onDragEnter = (event: DragEvent) => {
+      event.preventDefault();
+      dragCounter.current++;
+      if (event.dataTransfer?.types.includes("Files")) setWindowDragging(true);
+    };
+    const onDragOver = (event: DragEvent) => {
+      event.preventDefault();
+    };
+    const onDragLeave = (event: DragEvent) => {
+      event.preventDefault();
+      dragCounter.current--;
+      if (dragCounter.current <= 0) {
+        dragCounter.current = 0;
+        setWindowDragging(false);
+      }
+    };
+    const onDrop = (event: DragEvent) => {
+      event.preventDefault();
+      dragCounter.current = 0;
+      setWindowDragging(false);
+      if (event.dataTransfer?.files.length) addFiles(event.dataTransfer.files);
+    };
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [addFiles]);
+
   const saveSelected = () => {
     if (!selectedItem?.resultUrl || !settings) return;
     const extension = settings.outputFormat === "jpg" ? "jpg" : settings.outputFormat;
@@ -253,7 +290,7 @@ export function App() {
   const hasResult = Boolean(selectedItem?.resultUrl);
 
   return (
-    <div className="flex h-screen select-none flex-col bg-background text-foreground">
+    <div className="relative flex h-screen select-none flex-col bg-background text-foreground">
       <Navbar
         maxWidth="full"
         height="3rem"
@@ -309,7 +346,7 @@ export function App() {
               <ImagePlus size={28} className="text-default-400" />
               <h2 className="text-medium font-medium">Drop images here</h2>
               <p className="max-w-xs text-small text-default-500">
-                PNG, JPG, or WebP — or paste from the clipboard.
+                PNG, JPG, or WebP, or paste from the clipboard.
               </p>
               {!readyModels.length && (
                 <Chip size="sm" color="warning" variant="flat" className="mt-1">
@@ -481,6 +518,15 @@ export function App() {
           )}
         </div>
       </main>
+
+      {windowDragging && (
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-primary p-10">
+            <ImagePlus size={40} className="text-primary" />
+            <p className="text-lg font-medium text-primary">Drop images to process</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -101,7 +101,7 @@ const MODEL_REGISTRY = [
     speedNote: "Highest quality, very large"
   }
 ];
-const downloading = /* @__PURE__ */ new Set();
+const downloading = /* @__PURE__ */ new Map();
 function modelCacheRoot() {
   return join(app.getPath("userData"), "models");
 }
@@ -145,13 +145,14 @@ function emitProgress(progress) {
 async function downloadModel(modelId) {
   const model = getModelEntry(modelId);
   if (downloading.has(model.id)) return listModels();
-  downloading.add(model.id);
+  const abort = new AbortController();
+  downloading.set(model.id, abort);
   emitProgress({ modelId: model.id, progress: 5, status: "downloading", message: "Starting download" });
+  const dest = onnxPathFor(model.onnxFile);
   try {
     const url = `${RELEASE_BASE}/${model.onnxFile}`;
-    const dest = onnxPathFor(model.onnxFile);
     mkdirSync(modelCacheRoot(), { recursive: true });
-    const response = await fetch(url, { redirect: "follow" });
+    const response = await fetch(url, { redirect: "follow", signal: abort.signal });
     if (!response.ok || !response.body) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -160,6 +161,11 @@ async function downloadModel(modelId) {
     let downloaded = 0;
     const reader = response.body.getReader();
     await reader.read().then(function pump({ done, value }) {
+      if (abort.signal.aborted) {
+        reader.cancel();
+        fileStream.destroy();
+        return;
+      }
       if (done) {
         fileStream.end();
         return;
@@ -177,12 +183,15 @@ async function downloadModel(modelId) {
       }
       return reader.read().then(pump);
     });
-    await new Promise((resolve, reject) => {
-      fileStream.on("finish", resolve);
-      fileStream.on("error", reject);
-    });
-    emitProgress({ modelId: model.id, progress: 100, status: "ready", message: "Ready" });
+    if (!abort.signal.aborted) {
+      await new Promise((resolve, reject) => {
+        fileStream.on("finish", resolve);
+        fileStream.on("error", reject);
+      });
+      emitProgress({ modelId: model.id, progress: 100, status: "ready", message: "Ready" });
+    }
   } catch (error) {
+    if (abort.signal.aborted) return listModels();
     console.error("[models] download error:", error);
     emitProgress({
       modelId: model.id,
@@ -192,7 +201,13 @@ async function downloadModel(modelId) {
     });
   } finally {
     downloading.delete(model.id);
+    if (abort.signal.aborted && existsSync(dest)) rmSync(dest, { force: true });
   }
+  return listModels();
+}
+function cancelDownload(modelId) {
+  const abort = downloading.get(modelId);
+  if (abort) abort.abort();
   return listModels();
 }
 function deleteModel(modelId) {
@@ -561,6 +576,7 @@ function registerIpcHandlers() {
   });
   ipcMain.handle("models:list", () => listModels());
   ipcMain.handle("models:download", (_event, modelId) => downloadModel(modelId));
+  ipcMain.handle("models:cancel", (_event, modelId) => cancelDownload(modelId));
   ipcMain.handle("models:delete", (_event, modelId) => deleteModel(modelId));
   ipcMain.handle("window:openSettings", () => openSettingsWindow());
   ipcMain.handle("window:openModels", () => openModelsWindow());

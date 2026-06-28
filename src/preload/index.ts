@@ -26,6 +26,9 @@ const api: RemoveSimplyApi = {
     download(modelId: string): Promise<ModelInfo[]> {
       return ipcRenderer.invoke("models:download", modelId) as Promise<ModelInfo[]>;
     },
+    cancel(modelId: string): Promise<ModelInfo[]> {
+      return ipcRenderer.invoke("models:cancel", modelId) as Promise<ModelInfo[]>;
+    },
     delete(modelId: string): Promise<ModelInfo[]> {
       return ipcRenderer.invoke("models:delete", modelId) as Promise<ModelInfo[]>;
     },

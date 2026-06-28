@@ -10,6 +10,7 @@ export interface RemoveSimplyApi {
   models: {
     list(): Promise<ModelInfo[]>;
     download(modelId: string): Promise<ModelInfo[]>;
+    cancel(modelId: string): Promise<ModelInfo[]>;
     delete(modelId: string): Promise<ModelInfo[]>;
     onProgress(callback: (progress: DownloadProgress) => void): () => void;
   };
