@@ -1,6 +1,6 @@
 {
   "name": "remove-simply",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "A self-contained Electron background-removal app.",
   "desktopName": "remove-simply",
   "type": "module",
