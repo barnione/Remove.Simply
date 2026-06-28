@@ -1,11 +1,11 @@
+import { utilityProcess } from "electron";
+import { join } from "node:path";
 import sharp from "sharp";
 import type { RemoveOptions, RemoveResult, ModelFamily } from "../../types";
 import { encodeOutput, mimeForFormat } from "./encode";
 import { getOnnxPath, getModelFamily } from "./models";
-import { getCachedPipeline, setCachedPipeline } from "./pipelineCache";
 
 type MaskResult = { rgba: Buffer; width: number; height: number };
-type PipelineFn = (input: Buffer) => Promise<MaskResult>;
 
 const MODEL_CONFIGS: Record<ModelFamily, { size: number; mean: number[]; std: number[] }> = {
   u2net: { size: 320, mean: [0.485, 0.456, 0.406], std: [0.229, 0.224, 0.225] },
@@ -62,24 +62,22 @@ async function createFallbackMask(input: Buffer, options: RemoveOptions): Promis
   return { rgba: raw, width, height };
 }
 
-function buildPreprocessor(family: ModelFamily) {
+async function preprocess(input: Buffer, family: ModelFamily): Promise<Float32Array> {
   const { size, mean, std } = MODEL_CONFIGS[family];
-  return async (input: Buffer) => {
-    const pixels = await sharp(input)
-      .rotate()
-      .resize(size, size, { fit: "fill" })
-      .removeAlpha()
-      .raw()
-      .toBuffer();
+  const pixels = await sharp(input)
+    .rotate()
+    .resize(size, size, { fit: "fill" })
+    .removeAlpha()
+    .raw()
+    .toBuffer();
 
-    const float = new Float32Array(3 * size * size);
-    for (let i = 0; i < size * size; i++) {
-      float[i] = (pixels[i * 3] / 255 - mean[0]) / std[0];
-      float[size * size + i] = (pixels[i * 3 + 1] / 255 - mean[1]) / std[1];
-      float[2 * size * size + i] = (pixels[i * 3 + 2] / 255 - mean[2]) / std[2];
-    }
-    return float;
-  };
+  const float = new Float32Array(3 * size * size);
+  for (let i = 0; i < size * size; i++) {
+    float[i] = (pixels[i * 3] / 255 - mean[0]) / std[0];
+    float[size * size + i] = (pixels[i * 3 + 1] / 255 - mean[1]) / std[1];
+    float[2 * size * size + i] = (pixels[i * 3 + 2] / 255 - mean[2]) / std[2];
+  }
+  return float;
 }
 
 function postprocessMask(output: Float32Array, family: ModelFamily, size: number): Uint8Array {
@@ -106,58 +104,83 @@ function postprocessMask(output: Float32Array, family: ModelFamily, size: number
   return mask;
 }
 
-async function getPipeline(modelId: string): Promise<PipelineFn> {
-  const cached = getCachedPipeline(modelId);
-  if (cached) return cached as Promise<PipelineFn>;
+function runInferenceInProcess(
+  onnxPath: string,
+  floatData: Float32Array,
+  size: number,
+  executionProvider: string
+): Promise<Float32Array> {
+  return new Promise((resolve, reject) => {
+    const workerPath = join(__dirname, "inferenceWorker.js");
+    const child = utilityProcess.fork(workerPath);
 
-  const pending = (async (): Promise<PipelineFn> => {
-    const ort = await import("onnxruntime-node");
-    const onnxPath = getOnnxPath(modelId);
-    const family = getModelFamily(modelId);
-    const { size } = MODEL_CONFIGS[family];
-    const session = await ort.InferenceSession.create(onnxPath);
-    const preprocess = buildPreprocessor(family);
-    const inputName = session.inputNames[0];
-
-    return async (input: Buffer): Promise<MaskResult> => {
-      const metadata = await sharp(input).rotate().metadata();
-      const origW = metadata.width ?? 1;
-      const origH = metadata.height ?? 1;
-
-      const floatData = await preprocess(input);
-      const tensor = new ort.Tensor("float32", floatData, [1, 3, size, size]);
-      const results = await session.run({ [inputName]: tensor });
-      const outputTensor = results[session.outputNames[0]];
-      const rawMask = postprocessMask(outputTensor.data as Float32Array, family, size);
-
-      const maskResized = await sharp(Buffer.from(rawMask), { raw: { width: size, height: size, channels: 1 } })
-        .resize(origW, origH, { fit: "fill" })
-        .raw()
-        .toBuffer();
-
-      const source = await sharp(input).rotate().resize(origW, origH).ensureAlpha().raw().toBuffer();
-      for (let i = 0; i < origW * origH; i++) {
-        source[i * 4 + 3] = maskResized[i];
+    let settled = false;
+    child.on("message", (msg: any) => {
+      if (settled) return;
+      settled = true;
+      if (msg?.error) {
+        reject(new Error(msg.error));
+      } else if (msg?.data) {
+        const buf = Buffer.from(msg.data, "base64");
+        resolve(new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4));
       }
+      child.kill();
+    });
 
-      return { rgba: source, width: origW, height: origH };
-    };
-  })();
+    child.on("exit", (code) => {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`Inference process crashed (exit code ${code})`));
+      }
+    });
 
-  setCachedPipeline(modelId, pending);
-  return pending;
+    const floatBuf = Buffer.from(floatData.buffer, floatData.byteOffset, floatData.byteLength);
+    child.postMessage({
+      onnxPath,
+      floatDataBase64: floatBuf.toString("base64"),
+      size,
+      executionProvider
+    });
+  });
 }
 
 async function tryModelMask(input: Buffer, options: RemoveOptions): Promise<MaskResult | null> {
   try {
-    const pipeline = await getPipeline(options.modelId);
-    const result = await pipeline(input);
+    const modelId = options.modelId;
+    const onnxPath = getOnnxPath(modelId);
+    const family = getModelFamily(modelId);
+    const { size } = MODEL_CONFIGS[family];
+
+    const metadata = await sharp(input).rotate().metadata();
+    const origW = metadata.width ?? 1;
+    const origH = metadata.height ?? 1;
+
+    const floatData = await preprocess(input, family);
+    const outputData = await runInferenceInProcess(
+      onnxPath,
+      floatData,
+      size,
+      options.executionProvider
+    );
+    const rawMask = postprocessMask(outputData, family, size);
+
+    const maskResized = await sharp(Buffer.from(rawMask), { raw: { width: size, height: size, channels: 1 } })
+      .resize(origW, origH, { fit: "fill" })
+      .raw()
+      .toBuffer();
+
+    const source = await sharp(input).rotate().resize(origW, origH).ensureAlpha().raw().toBuffer();
+    for (let i = 0; i < origW * origH; i++) {
+      source[i * 4 + 3] = maskResized[i];
+    }
+
     if (options.alphaMatting.enabled) {
-      for (let i = 0; i < result.width * result.height; i++) {
-        result.rgba[i * 4 + 3] = applyAlphaSettings(result.rgba[i * 4 + 3], options);
+      for (let i = 0; i < origW * origH; i++) {
+        source[i * 4 + 3] = applyAlphaSettings(source[i * 4 + 3], options);
       }
     }
-    return result;
+
+    return { rgba: source, width: origW, height: origH };
   } catch (err) {
     console.error("[remover] model inference failed:", err);
     return null;

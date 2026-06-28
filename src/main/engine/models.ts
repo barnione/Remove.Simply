@@ -2,7 +2,6 @@ import { app, BrowserWindow } from "electron";
 import { createWriteStream, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { DownloadProgress, ModelFamily, ModelInfo } from "../../types";
-import { clearCachedPipeline } from "./pipelineCache";
 
 const RELEASE_BASE = "https://github.com/danielgatis/rembg/releases/download/v0.0.0";
 
@@ -226,6 +225,5 @@ export function deleteModel(modelId: string): ModelInfo[] {
   const model = getModelEntry(modelId);
   const path = onnxPathFor(model.onnxFile);
   if (existsSync(path)) rmSync(path, { force: true });
-  clearCachedPipeline(model.id);
   return listModels();
 }

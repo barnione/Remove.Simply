@@ -1,0 +1,11 @@
+{
+  "files": [
+    "src/renderer/main/index.html",
+    "src/renderer/settings/index.html",
+    "src/renderer/models/index.html",
+    "src/renderer/about/index.html"
+  ],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}

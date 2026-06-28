@@ -43,6 +43,7 @@ export interface RemoveOptions {
   quality: number;
   transparentBackground: boolean;
   backgroundColor: string;
+  executionProvider: ExecutionProvider;
   alphaMatting: AlphaMattingSettings;
 }
 

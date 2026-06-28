@@ -161,6 +161,7 @@ export function App() {
         quality: settings.outputQuality,
         transparentBackground: settings.transparentBackground,
         backgroundColor: settings.backgroundColor,
+        executionProvider: settings.executionProvider,
         alphaMatting: settings.alphaMatting
       };
 
@@ -401,23 +402,39 @@ export function App() {
 
               {settings && (
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <Tooltip
-                    content="Re-process with current settings"
-                    placement="top"
-                    delay={200}
-                    size="sm"
-                  >
-                    <Button
-                      isIconOnly
+                  <div className="flex items-center gap-1.5">
+                    <Select
+                      aria-label="Model"
                       size="sm"
                       variant="flat"
-                      isDisabled={!hasResult}
-                      onPress={rerunSelected}
-                      aria-label="Re-run with current settings"
+                      className="w-44"
+                      selectedKeys={[settings.defaultModel]}
+                      onChange={(event) =>
+                        updateSettings({ defaultModel: event.target.value })
+                      }
                     >
-                      <RefreshCcw size={14} />
-                    </Button>
-                  </Tooltip>
+                      {readyModels.map((m) => (
+                        <SelectItem key={m.id}>{m.label}</SelectItem>
+                      ))}
+                    </Select>
+                    <Tooltip
+                      content="Re-process with current settings"
+                      placement="top"
+                      delay={200}
+                      size="sm"
+                    >
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="flat"
+                        isDisabled={!hasResult}
+                        onPress={rerunSelected}
+                        aria-label="Re-run with current settings"
+                      >
+                        <RefreshCcw size={14} />
+                      </Button>
+                    </Tooltip>
+                  </div>
                   <div className="flex flex-wrap items-center gap-3">
                   <Select
                     aria-label="Output format"

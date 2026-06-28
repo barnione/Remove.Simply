@@ -1,13 +1,14 @@
 import Store from "electron-store";
 import type { AppSettings } from "../types";
+import { listModels } from "./engine/models";
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  defaultModel: "isnet",
+  defaultModel: "isnet-general",
   outputFormat: "png",
   outputQuality: 92,
   transparentBackground: true,
   backgroundColor: "#ffffff",
-  executionProvider: "cpu",
+  executionProvider: process.platform === "darwin" ? "coreml" : "cpu",
   maxUploadSizeMB: 25,
   darkTheme: true,
   alphaMatting: {
@@ -30,11 +31,22 @@ export const store = new Store<StoreShape>({
 });
 
 export function getSettings(): AppSettings {
-  return { ...DEFAULT_SETTINGS, ...store.get("settings") };
+  const settings = { ...DEFAULT_SETTINGS, ...store.get("settings") };
+  const cached = listModels().filter((m) => m.cached);
+  if (cached.length && !cached.some((m) => m.id === settings.defaultModel)) {
+    settings.defaultModel = cached[0].id;
+  }
+  return settings;
 }
 
 export function setSettings(patch: Partial<AppSettings>): AppSettings {
   const current = getSettings();
+  if (patch.defaultModel) {
+    const cached = listModels().filter((m) => m.cached);
+    if (!cached.some((m) => m.id === patch.defaultModel)) {
+      delete patch.defaultModel;
+    }
+  }
   const next: AppSettings = {
     ...current,
     ...patch,
