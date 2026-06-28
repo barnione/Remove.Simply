@@ -16,17 +16,13 @@ supportedArchitectures:
     - glibc
 
 allowBuilds:
-  '@heroui/shared-utils': true
+  "@heroui/shared-utils": true
   electron: true
   electron-winstaller: true
   esbuild: true
   onnxruntime-node: true
   protobufjs: true
   sharp: true
-
-overrides:
-  react-aria: 3.49.0
-  "@react-types/shared": 3.35.0
 
 onlyBuiltDependencies:
   - "@heroui/shared-utils"
@@ -36,3 +32,4 @@ onlyBuiltDependencies:
   - onnxruntime-node
   - protobufjs
   - sharp
+
