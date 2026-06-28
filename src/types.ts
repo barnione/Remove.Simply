@@ -34,6 +34,7 @@ export interface AppSettings {
   executionProvider: ExecutionProvider;
   maxUploadSizeMB: number;
   darkTheme: boolean;
+  autoUpdatesEnabled: boolean;
   alphaMatting: AlphaMattingSettings;
 }
 
@@ -60,4 +61,11 @@ export interface DownloadProgress {
   progress: number;
   status: "downloading" | "ready" | "error";
   message?: string;
+}
+
+export interface UpdateInfoPayload {
+  version: string;
+  releaseNotes?: string;
+  downloaded: boolean;
+  autoUpdatesEnabled: boolean;
 }

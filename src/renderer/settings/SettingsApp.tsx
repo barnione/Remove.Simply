@@ -304,6 +304,24 @@ export function SettingsApp() {
           )}
           </section>
 
+          <section className="flex flex-col gap-3">
+            <SectionHeading title="App" hint="Application updates and behavior." />
+            <div className="flex items-center justify-between gap-3 rounded-medium border border-default-100 bg-content1 px-3 py-2.5">
+              <div className="flex flex-col">
+                <span className="text-small">Automatic updates</span>
+                <span className="text-tiny text-default-500">
+                  Download and install updates from GitHub releases on startup.
+                </span>
+              </div>
+              <Switch
+                size="sm"
+                isSelected={settings.autoUpdatesEnabled}
+                onValueChange={(autoUpdatesEnabled) => save({ autoUpdatesEnabled })}
+                aria-label="Automatic updates"
+              />
+            </div>
+          </section>
+
           <AboutCard />
         </div>
       </main>

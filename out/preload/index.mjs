@@ -48,6 +48,30 @@ const api = {
     closeAbout() {
       return ipcRenderer.invoke("window:closeAbout");
     }
+  },
+  update: {
+    check() {
+      return ipcRenderer.invoke("update:check");
+    },
+    download() {
+      return ipcRenderer.invoke("update:download");
+    },
+    install() {
+      return ipcRenderer.invoke("update:install");
+    },
+    info() {
+      return ipcRenderer.invoke("update:info");
+    },
+    onAvailable(callback) {
+      const listener = (_event, info) => callback(info);
+      ipcRenderer.on("update:available", listener);
+      return () => ipcRenderer.off("update:available", listener);
+    },
+    onStatus(callback) {
+      const listener = (_event, status) => callback(status);
+      ipcRenderer.on("update:status", listener);
+      return () => ipcRenderer.off("update:status", listener);
+    }
   }
 };
 contextBridge.exposeInMainWorld("api", api);

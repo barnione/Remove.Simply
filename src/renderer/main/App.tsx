@@ -121,9 +121,67 @@ export function App() {
     const offProgress = window.api.models.onProgress(() => {
       void window.api.models.list().then(setModels);
     });
+    const offUpdate = window.api.update.onAvailable((info) => {
+      if (info.downloaded) {
+        addToast({
+          title: "Update ready",
+          description: `Remove.Simply ${info.version} is downloaded.`,
+          color: "success",
+          timeout: 0,
+          endContent: (
+            <Button
+              size="sm"
+              color="primary"
+              onPress={() => void window.api.update.install()}
+            >
+              Restart
+            </Button>
+          )
+        });
+      } else if (info.autoUpdatesEnabled) {
+        addToast({
+          title: "Update available",
+          description: `Remove.Simply ${info.version} will download automatically.`,
+          color: "primary"
+        });
+      } else {
+        addToast({
+          title: "Update available",
+          description: `Remove.Simply ${info.version} is available.`,
+          color: "primary",
+          timeout: 0,
+          endContent: (
+            <Button
+              size="sm"
+              color="primary"
+              onPress={() => void window.api.update.download()}
+            >
+              Update
+            </Button>
+          )
+        });
+      }
+    });
+    const offUpdateStatus = window.api.update.onStatus((status) => {
+      if (status.status === "downloading") {
+        addToast({
+          title: "Downloading update",
+          description: `Remove.Simply ${status.version ?? ""} is downloading...`,
+          color: "primary"
+        });
+      } else if (status.status === "error") {
+        addToast({
+          title: "Update failed",
+          description: status.message || "Could not download the update.",
+          color: "danger"
+        });
+      }
+    });
     return () => {
       offSettings();
       offProgress();
+      offUpdate();
+      offUpdateStatus();
     };
   }, []);
 

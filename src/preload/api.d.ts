@@ -1,4 +1,4 @@
-import type { AppSettings, DownloadProgress, ModelInfo, RemoveOptions, RemoveResult } from "../types";
+import type { AppSettings, DownloadProgress, ModelInfo, RemoveOptions, RemoveResult, UpdateInfoPayload } from "../types";
 
 export interface RemoveSimplyApi {
   removeBg(file: ArrayBuffer, options: RemoveOptions): Promise<RemoveResult>;
@@ -19,6 +19,14 @@ export interface RemoveSimplyApi {
     openModels(): Promise<void>;
     openAbout(): Promise<void>;
     closeAbout(): Promise<void>;
+  };
+  update: {
+    check(): Promise<unknown>;
+    download(): Promise<unknown>;
+    install(): Promise<void>;
+    info(): Promise<UpdateInfoPayload | null>;
+    onAvailable(callback: (info: UpdateInfoPayload) => void): () => void;
+    onStatus(callback: (status: { status: string; version?: string; message?: string }) => void): () => void;
   };
 }
 

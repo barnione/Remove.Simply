@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   executionProvider: process.platform === "darwin" ? "coreml" : "cpu",
   maxUploadSizeMB: 25,
   darkTheme: true,
+  autoUpdatesEnabled: true,
   alphaMatting: {
     enabled: true,
     foregroundThreshold: 240,

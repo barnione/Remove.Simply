@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, statSync, createWriteStream, rmSync } from "node
 import { join } from "node:path";
 import sharp from "sharp";
 import Store from "electron-store";
+import { autoUpdater } from "electron-updater";
 import __cjs_mod__ from "node:module";
 const __filename = import.meta.filename;
 const __dirname = import.meta.dirname;
@@ -391,6 +392,7 @@ const DEFAULT_SETTINGS = {
   executionProvider: process.platform === "darwin" ? "coreml" : "cpu",
   maxUploadSizeMB: 25,
   darkTheme: true,
+  autoUpdatesEnabled: true,
   alphaMatting: {
     enabled: true,
     foregroundThreshold: 240,
@@ -469,6 +471,9 @@ function commonWindowOptions() {
       sandbox: false
     }
   };
+}
+function getMainWindow() {
+  return mainWindow;
 }
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -599,12 +604,84 @@ function registerIpcHandlers() {
   ipcMain.handle("window:openAbout", () => openAboutWindow());
   ipcMain.handle("window:closeAbout", () => closeAboutWindow());
 }
+let lastUpdateInfo = null;
+let isDownloading = false;
+function send(channel, payload) {
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send(channel, payload);
+}
+function initAutoUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-available", (info) => {
+    lastUpdateInfo = info;
+    const settings = getSettings();
+    send("update:available", {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+      downloaded: false,
+      autoUpdatesEnabled: settings.autoUpdatesEnabled
+    });
+    if (settings.autoUpdatesEnabled && !isDownloading) {
+      isDownloading = true;
+      send("update:status", { status: "downloading", version: info.version });
+      autoUpdater.downloadUpdate().catch((error) => {
+        isDownloading = false;
+        send("update:status", { status: "error", message: String(error) });
+      });
+    }
+  });
+  autoUpdater.on("update-downloaded", (info) => {
+    isDownloading = false;
+    lastUpdateInfo = info;
+    send("update:available", {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+      downloaded: true,
+      autoUpdatesEnabled: getSettings().autoUpdatesEnabled
+    });
+  });
+  autoUpdater.on("error", (error) => {
+    isDownloading = false;
+    send("update:status", { status: "error", message: error.message });
+  });
+  ipcMain.handle("update:check", async () => {
+    return autoUpdater.checkForUpdates();
+  });
+  ipcMain.handle("update:download", async () => {
+    if (isDownloading) return null;
+    isDownloading = true;
+    return autoUpdater.downloadUpdate();
+  });
+  ipcMain.handle("update:install", () => {
+    autoUpdater.quitAndInstall(false, true);
+  });
+  ipcMain.handle(
+    "update:info",
+    () => lastUpdateInfo ? {
+      version: lastUpdateInfo.version,
+      releaseNotes: lastUpdateInfo.releaseNotes,
+      downloaded: false,
+      autoUpdatesEnabled: getSettings().autoUpdatesEnabled
+    } : null
+  );
+}
+function scheduleUpdateCheck(delayMs = 5e3) {
+  if (process.env.NODE_ENV === "development") return;
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(() => {
+    });
+  }, delayMs);
+}
 app.commandLine.appendSwitch("enable-features", "SharedArrayBuffer");
 configureModelCache();
 registerIpcHandlers();
 installAppWindowHandlers();
+initAutoUpdater();
 app.whenReady().then(() => {
   createMainWindow();
+  scheduleUpdateCheck();
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

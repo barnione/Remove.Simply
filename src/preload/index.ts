@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AppSettings, DownloadProgress, ModelInfo, RemoveOptions, RemoveResult } from "../types";
+import type { AppSettings, DownloadProgress, ModelInfo, RemoveOptions, RemoveResult, UpdateInfoPayload } from "../types";
 import type { RemoveSimplyApi } from "./api";
 
 const api: RemoveSimplyApi = {
@@ -50,6 +50,30 @@ const api: RemoveSimplyApi = {
     },
     closeAbout(): Promise<void> {
       return ipcRenderer.invoke("window:closeAbout") as Promise<void>;
+    }
+  },
+  update: {
+    check(): Promise<unknown> {
+      return ipcRenderer.invoke("update:check");
+    },
+    download(): Promise<unknown> {
+      return ipcRenderer.invoke("update:download");
+    },
+    install(): Promise<void> {
+      return ipcRenderer.invoke("update:install") as Promise<void>;
+    },
+    info(): Promise<UpdateInfoPayload | null> {
+      return ipcRenderer.invoke("update:info") as Promise<UpdateInfoPayload | null>;
+    },
+    onAvailable(callback: (info: UpdateInfoPayload) => void): () => void {
+      const listener = (_event: Electron.IpcRendererEvent, info: UpdateInfoPayload) => callback(info);
+      ipcRenderer.on("update:available", listener);
+      return () => ipcRenderer.off("update:available", listener);
+    },
+    onStatus(callback: (status: { status: string; version?: string; message?: string }) => void): () => void {
+      const listener = (_event: Electron.IpcRendererEvent, status: { status: string; version?: string; message?: string }) => callback(status);
+      ipcRenderer.on("update:status", listener);
+      return () => ipcRenderer.off("update:status", listener);
     }
   }
 };
