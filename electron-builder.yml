@@ -26,6 +26,7 @@ mac:
   icon: build/icon.icns
   target:
     - dmg
+    - zip
 win:
   files:
     - "!**/node_modules/onnxruntime-node/bin/**/linux${/*}"

@@ -99,23 +99,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and publish
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
         shell: bash
         run: |
           pnpm build
           case "$RUNNER_OS" in
             macOS)
-              pnpm electron-builder --mac --x64 --arm64 --publish=always
+              pnpm electron-builder --mac --x64 --arm64 --publish=never
               ;;
             Windows)
-              pnpm electron-builder --win --x64 --publish=always
+              pnpm electron-builder --win --x64 --publish=never
               ;;
             Linux)
-              pnpm electron-builder --linux --x64 --publish=always
+              pnpm electron-builder --linux --x64 --publish=never
               ;;
           esac
+
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.bump-version.outputs.tag }}
+          files: |
+            release/Remove.Simply-*-linux-x86_64.AppImage
+            release/Remove.Simply-*-mac-arm64.dmg
+            release/Remove.Simply-*-mac-x64.dmg
+            release/Remove.Simply-*-win-x64.exe
+          fail_on_unmatched_files: true
 
   publish-release:
     needs: [bump-version, build]
